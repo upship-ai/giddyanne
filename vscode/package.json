@@ -1,0 +1,82 @@
+{
+    "name": "giddyanne",
+    "displayName": "Giddyanne",
+    "description": "Semantic codebase search - find code by meaning",
+    "version": "1.1.1",
+    "publisher": "mazziv",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/mazziv/giddyanne"
+    },
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": ["Other"],
+    "activationEvents": [],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "giddyanne.find",
+                "title": "Giddyanne: Find"
+            },
+            {
+                "command": "giddyanne.up",
+                "title": "Giddyanne: Start Server"
+            },
+            {
+                "command": "giddyanne.down",
+                "title": "Giddyanne: Stop Server"
+            },
+            {
+                "command": "giddyanne.status",
+                "title": "Giddyanne: Server Status"
+            },
+            {
+                "command": "giddyanne.health",
+                "title": "Giddyanne: Index Health"
+            },
+            {
+                "command": "giddyanne.log",
+                "title": "Giddyanne: Stream Logs"
+            }
+        ],
+        "configuration": {
+            "title": "Giddyanne",
+            "properties": {
+                "giddyanne.executable": {
+                    "type": "string",
+                    "default": "giddy",
+                    "description": "Path to the giddy executable"
+                },
+                "giddyanne.serverUrl": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Server URL (leave empty to read from .giddyanne/port)"
+                }
+            }
+        },
+        "keybindings": [
+            {
+                "command": "giddyanne.find",
+                "key": "ctrl+shift+g",
+                "mac": "cmd+shift+g"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "lint": "eslint src"
+    },
+    "devDependencies": {
+        "@types/node": "^20.0.0",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^6.0.0",
+        "@typescript-eslint/parser": "^6.0.0",
+        "eslint": "^8.0.0",
+        "typescript": "^5.0.0"
+    }
+}

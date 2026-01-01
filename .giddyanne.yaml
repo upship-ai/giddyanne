@@ -1,0 +1,24 @@
+paths:
+  - path: src/
+    description: Core source code - watcher, embeddings, vector store, API, MCP server
+
+  - path: cmd/
+    description: Go CLI client - giddy command, talks to HTTP server
+
+  - path: tests/
+    description: Unit tests for python application code.
+
+  - path: emacs/
+    description: Emacs package with full integration
+
+  - path: vscode/
+    description: VsCode package with full integration
+
+  - path: main.py
+    description: HTTP server entrypoint, wires components together
+
+  - path: mcp_main.py
+    description: MCP server entrypoint for Claude integration
+
+settings:
+  ignore_patterns: ["*.pyc"]

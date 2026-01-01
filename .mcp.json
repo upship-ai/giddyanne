@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "giddyanne": {
+      "command": "giddy",
+      "args": ["mcp"]
+    }
+  }
+}
