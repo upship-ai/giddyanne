@@ -36,7 +36,7 @@ Requires Python 3.11+ and Go 1.21+
 > **Indexing time:** ~750 files takes ~45 seconds on M1 Pro. Runs once at startup, then watches for changes.
 
 ```bash
-git clone --depth 1 --branch v1.1.1 https://github.com/khtdr/giddyanne.git
+git clone --depth 1 --branch v1.1.1 https://github.com/mazziv/giddyanne.git
 cd giddyanne
 make install
 ```
@@ -53,13 +53,13 @@ If you don't have Go installed, download a pre-built binary:
 
 ```bash
 # macOS Apple Silicon
-curl -L https://github.com/khtdr/giddyanne/releases/latest/download/giddy-macos-arm64 -o giddy
+curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-macos-arm64 -o giddy
 
 # macOS Intel
-curl -L https://github.com/khtdr/giddyanne/releases/latest/download/giddy-macos-amd64 -o giddy
+curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-macos-amd64 -o giddy
 
 # Linux
-curl -L https://github.com/khtdr/giddyanne/releases/latest/download/giddy-linux-amd64 -o giddy
+curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-linux-amd64 -o giddy
 
 chmod +x giddy
 mv giddy ~/bin/  # or /usr/local/bin
@@ -68,7 +68,7 @@ mv giddy ~/bin/  # or /usr/local/bin
 You still need Python for the server:
 
 ```bash
-git clone --depth 1 https://github.com/khtdr/giddyanne.git ~/.giddyanne-server
+git clone --depth 1 https://github.com/mazziv/giddyanne.git ~/.giddyanne-server
 cd ~/.giddyanne-server && make python
 ```
 

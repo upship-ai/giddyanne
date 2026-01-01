@@ -3,11 +3,11 @@
     "displayName": "Giddyanne",
     "description": "Semantic codebase search - find code by meaning",
     "version": "1.1.1",
-    "publisher": "khtdr",
+    "publisher": "mazziv",
     "license": "MIT",
     "repository": {
         "type": "git",
-        "url": "https://github.com/khtdr/giddyanne"
+        "url": "https://github.com/mazziv/giddyanne"
     },
     "engines": {
         "vscode": "^1.85.0"

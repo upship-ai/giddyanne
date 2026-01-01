@@ -6,7 +6,7 @@
 ;; Version: 1.1.1
 ;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: tools, search, semantic
-;; URL: https://github.com/khtdr/giddyanne
+;; URL: https://github.com/mazziv/giddyanne
 
 ;; This file is not part of GNU Emacs.
 
@@ -72,7 +72,7 @@ Set to nil to use Vertico's default. The default removes dashes."
 (defun giddyanne--executable ()
   "Return path to giddy executable, or signal error if not found."
   (or (executable-find giddyanne-executable)
-      (user-error "giddy not found in PATH. Install from https://github.com/khtdr/giddyanne")))
+      (user-error "giddy not found in PATH. Install from https://github.com/mazziv/giddyanne")))
 
 (defun giddyanne--run (&rest args)
   "Run giddy with ARGS and return output as string."
