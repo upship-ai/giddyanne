@@ -1,6 +1,4 @@
-# Giddyanne
-
-*The RAG is implied.*
+# *CODE RAG:* Giddyanne
 
 Semantic codebase search. Indexes your files with embeddings and lets you find code by meaning, not just keywords.
 
