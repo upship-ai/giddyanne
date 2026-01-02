@@ -29,9 +29,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.21'
+          cache: false
       - name: Build binary
-        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o ${{ matrix.name }} ./cmd/giddy
+        run: GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build -o giddy ./cmd/giddy
+      - name: Create archive
+        run: tar -czvf ${{ matrix.name }}.tar.gz giddy INSTALL.md
       - name: Upload to release
-        run: gh release upload ${{ github.ref_name }} ${{ matrix.name }}
+        run: gh release upload ${{ github.ref_name }} ${{ matrix.name }}.tar.gz
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

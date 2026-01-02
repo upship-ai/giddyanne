@@ -45,30 +45,9 @@ This builds the CLI, creates a Python virtualenv, and symlinks `giddy` to `~/bin
 make install BIN_DIR=/usr/local/bin  # or any directory in your PATH
 ```
 
-### Download Pre-built Binary
+### Pre-built Binary
 
-If you don't have Go installed, download a pre-built binary:
-
-```bash
-# macOS Apple Silicon
-curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-macos-arm64 -o giddy
-
-# macOS Intel
-curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-macos-amd64 -o giddy
-
-# Linux
-curl -L https://github.com/mazziv/giddyanne/releases/latest/download/giddy-linux-amd64 -o giddy
-
-chmod +x giddy
-mv giddy ~/bin/  # or /usr/local/bin
-```
-
-You still need Python for the server:
-
-```bash
-git clone --depth 1 https://github.com/mazziv/giddyanne.git ~/.giddyanne-server
-cd ~/.giddyanne-server && make python
-```
+If you don't have Go installed, see [INSTALL.md](INSTALL.md) for instructions on using pre-built binaries from [Releases](https://github.com/mazziv/giddyanne/releases).
 
 ## Quick Start
 
@@ -221,7 +200,7 @@ The `giddy mcp` command finds the project root by walking up to `.giddyanne.yaml
 Requires Emacs 28.1+. Add to your init file:
 
 ```elisp
-(add-to-list 'load-path "~/projects/giddyanne/emacs")  ; adjust to your clone location
+(add-to-list 'load-path "/path/to/giddyanne/emacs")  ; adjust to your clone location
 (require 'giddyanne)
 
 ;; Optional keybindings
@@ -235,7 +214,7 @@ Or with `use-package`:
 
 ```elisp
 (use-package giddyanne
-  :load-path "~/projects/giddyanne/emacs"
+  :load-path "/path/to/giddyanne/emacs"
   :bind (("C-c g f" . giddyanne-find)
          ("C-c g u" . giddyanne-up)
          ("C-c g d" . giddyanne-down)
@@ -247,7 +226,7 @@ Or with `use-package`:
 
 ```elisp
 (use-package giddyanne
-  :load-path "~/projects/giddyanne/emacs"
+  :load-path "/path/to/giddyanne/emacs"
   :commands (giddyanne-find giddyanne-up giddyanne-down giddyanne-status giddyanne-log giddyanne-health)
   :init
   (map! :leader
