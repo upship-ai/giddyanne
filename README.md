@@ -93,6 +93,40 @@ make install BIN_DIR=/usr/local/bin  # or any directory in your PATH
 
 If you don't have Go installed, see [INSTALL.md](INSTALL.md) for instructions on using pre-built binaries from [Releases](https://github.com/mazziv/giddyanne/releases).
 
+## Project Config
+
+A `.giddyanne.yaml` file is required in your project root.
+
+Minimal config:
+
+```yaml
+paths:
+  - path: .
+    description: My app
+```
+
+Example of a minimally annotated config:
+
+```yaml
+paths:
+  - path: src/
+    description: Core application source code
+
+  - path: src/auth/
+    description: Authentication, login, sessions, permissions
+
+  - path: tests/
+    description: Test suite and fixtures
+```
+
+That's it! Only supported language files are indexed, and `.gitignore` is respected automatically.
+
+Descriptions are embedded alongside content for better semantic matching. See [GUIDE.md](GUIDE.md#settings-reference) for all available settings.
+
+Tip: Run `giddy init` to generate a prompt you can paste into Claude or another LLM - it will analyze your codebase and create the config for you.
+
+> claude "follow the instructions: ${giddy init}"
+
 ## CLI Reference
 
 Run `giddy help`
@@ -125,55 +159,6 @@ giddy find --verbose      # Show full content (no truncation)
 giddy find --semantic     # Results from semantic search only
 giddy find --full-text    # Results from full-text search only
 giddy health --verbose    # List all files with chunk counts
-```
-
-## Project Config
-
-A `.giddyanne.yaml` file is required in your project root.
-
-Minimal config:
-
-```yaml
-paths:
-  - path: .
-    description: My app
-```
-
-Example of a minimally annotated config:
-
-```yaml
-paths:
-  - path: src/
-    description: Core application source code
-
-  - path: src/auth/
-    description: Authentication, login, sessions, permissions
-
-  - path: tests/
-    description: Test suite and fixtures
-```
-
-That's it! Only supported language files are indexed, and `.gitignore` is respected automatically.
-
-Descriptions are embedded alongside content for better semantic matching.
-
-Tip: Run `giddy init` to generate a prompt you can paste into Claude or another LLM - it will analyze your codebase and create the config for you.
-
-> claude "follow the instructions: ${giddy init}"
-
-### Optional Settings
-
-```yaml
-settings:
-  # Additional ignore patterns (beyond .gitignore)
-  ignore_patterns: ["*.generated.*"]
-
-  # Server
-  host: "0.0.0.0"
-  port: 8000
-
-  # Embedding model
-  local_model: "all-MiniLM-L6-v2"
 ```
 
 ## Shell Completions
