@@ -68,7 +68,7 @@ type StatsResponse struct {
 }
 
 // commands defines all available commands with their full names.
-var commands = []string{"up", "down", "bounce", "find", "log", "status", "health", "init", "mcp", "clean", "drop", "completion", "help"}
+var commands = []string{"up", "down", "bounce", "find", "log", "status", "health", "init", "install", "mcp", "clean", "drop", "completion", "help"}
 
 // matchCommand finds a command by prefix. Returns the command name or empty string if ambiguous/not found.
 func matchCommand(input string) (string, []string) {
@@ -143,6 +143,8 @@ func main() {
 		runMonitor()
 	case "init":
 		runInit()
+	case "install":
+		runInstall()
 	case "mcp":
 		runMcp()
 	case "clean":
@@ -168,6 +170,7 @@ Usage:
   giddy health [options]          Diagnostic information
   giddy log                       Stream server logs
   giddy init                      Print setup prompt for new projects
+  giddy install                   Download embedding model (~90MB, one-time)
   giddy mcp                       Run MCP server (for Claude Code)
   giddy drop                      Remove search index (keeps logs)
   giddy clean [options]           Remove all .giddyanne data
@@ -1199,6 +1202,38 @@ Group related code into paths with meaningful descriptions that explain the purp
 ---`)
 }
 
+func runInstall() {
+	giddyDir, err := getGiddyDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to find giddy installation: %v\n", err)
+		os.Exit(1)
+	}
+
+	pythonPath := filepath.Join(giddyDir, ".venv/bin/python")
+	if _, err := os.Stat(pythonPath); err != nil {
+		fmt.Fprintf(os.Stderr, "Python venv not found at %s (run 'make python' first)\n", pythonPath)
+		os.Exit(1)
+	}
+
+	installPath := filepath.Join(giddyDir, "install.py")
+	if _, err := os.Stat(installPath); err != nil {
+		fmt.Fprintf(os.Stderr, "install.py not found at %s\n", installPath)
+		os.Exit(1)
+	}
+
+	cmd := exec.Command(pythonPath, installPath)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Fprintf(os.Stderr, "Install failed: %v\n", err)
+		os.Exit(1)
+	}
+}
+
 func runMcp() {
 	// Find giddy installation directory
 	giddyDir, err := getGiddyDir()
@@ -1276,7 +1311,7 @@ _giddy_completions() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Commands
-    local commands="up down bounce find log status health init mcp clean drop completion help"
+    local commands="up down bounce find log status health init install mcp clean drop completion help"
 
     # Complete command as first argument
     if [[ ${COMP_CWORD} -eq 1 ]]; then
@@ -1334,6 +1369,7 @@ _giddy() {
         'status:Server status'
         'health:Diagnostic information'
         'init:Print setup prompt for new projects'
+        'install:Download embedding model'
         'mcp:Run MCP server (for Claude Code)'
         'drop:Remove search index (keeps logs)'
         'clean:Remove all .giddyanne data'
@@ -1416,6 +1452,7 @@ complete -c giddy -n '__fish_use_subcommand' -a log -d 'Stream server logs'
 complete -c giddy -n '__fish_use_subcommand' -a status -d 'Server status'
 complete -c giddy -n '__fish_use_subcommand' -a health -d 'Diagnostic information'
 complete -c giddy -n '__fish_use_subcommand' -a init -d 'Print setup prompt for new projects'
+complete -c giddy -n '__fish_use_subcommand' -a install -d 'Download embedding model'
 complete -c giddy -n '__fish_use_subcommand' -a mcp -d 'Run MCP server (for Claude Code)'
 complete -c giddy -n '__fish_use_subcommand' -a drop -d 'Remove search index (keeps logs)'
 complete -c giddy -n '__fish_use_subcommand' -a clean -d 'Remove all .giddyanne data'

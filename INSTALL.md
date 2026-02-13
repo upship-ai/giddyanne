@@ -10,7 +10,7 @@
 ## Build from Source
 
 ```bash
-git clone --depth 1 --branch v1.2.0 https://github.com/mazziv/giddyanne.git
+git clone --depth 1 --branch v1.2.1 https://github.com/mazziv/giddyanne.git
 cd giddyanne
 make install
 ```
@@ -29,7 +29,7 @@ If you don't have Go installed:
 
 ```bash
 # Clone the repo (needed for Python server code)
-git clone --depth 1 --branch v1.2.0 https://github.com/mazziv/giddyanne.git
+git clone --depth 1 --branch v1.2.1 https://github.com/mazziv/giddyanne.git
 cd giddyanne
 
 # Download binary for your platform from Releases:
@@ -50,7 +50,14 @@ ln -sf "$(pwd)/giddy" ~/bin/giddy
 
 First install downloads dependencies (~2GB for PyTorch). This is a one-time download.
 
-First search downloads the embedding model (~90MB). Also one-time.
+Then download the embedding model:
+
+```bash
+giddy install      # Download embedding model (~90MB, one-time)
+```
+
+If you skip this step, the model downloads automatically on first `giddy up` — but the
+explicit install step makes the wait visible instead of silently blocking startup.
 
 Initial indexing takes time depending on codebase size:
 - ~750 files: ~45 seconds on M1 Pro

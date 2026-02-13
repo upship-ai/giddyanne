@@ -4,6 +4,12 @@ All notable changes to giddyanne will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-02-12
+
+### Added
+
+- **`giddy install` command**: Downloads the embedding model (~90MB) upfront so `giddy up` starts immediately without a silent download pause
+
 ## [1.2.0] - 2026-02-12
 
 ### Added

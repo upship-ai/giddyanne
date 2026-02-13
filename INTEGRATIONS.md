@@ -90,7 +90,7 @@ Requires Node.js 18+ and npm.
 ```bash
 cd giddyanne
 make vscode
-code --install-extension vscode/giddyanne-1.2.0.vsix
+code --install-extension vscode/giddyanne-1.2.1.vsix
 ```
 
 ### Commands
