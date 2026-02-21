@@ -80,11 +80,11 @@ def create_app(
     @app.post("/search", response_model=SearchResponse)
     async def search(request: SearchRequest):
         """Search indexed files by semantic similarity."""
-        # Check if server is still indexing
-        if progress is not None and progress.state == "indexing":
+        # Check if server is still starting or indexing
+        if progress is not None and progress.state in ("starting", "indexing"):
             raise HTTPException(
                 status_code=503,
-                detail=f"Server is indexing ({progress.percent}% complete)",
+                detail=f"Server is {progress.state} ({progress.percent}% complete)",
             )
 
         start = time.perf_counter()

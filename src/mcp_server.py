@@ -14,12 +14,13 @@ from .project_config import ProjectConfig
 from .vectorstore import VectorStore
 
 if TYPE_CHECKING:
-    from .engine import StatsTracker
+    from .engine import IndexingProgress, StatsTracker
 
 # Will be initialized on startup
 _embedding_service: EmbeddingService | None = None
 _vector_store: VectorStore | None = None
 _stats: "StatsTracker | None" = None
+_progress: "IndexingProgress | None" = None
 _project_config: ProjectConfig | None = None
 _root_path: Path | None = None
 
@@ -88,6 +89,32 @@ def create_server() -> Server:
                             "default": False,
                         },
                     },
+                },
+            ),
+            Tool(
+                name="status",
+                description="Show indexing progress. "
+                "Returns current state (starting/indexing/ready/error) and file counts.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
+            Tool(
+                name="health",
+                description="Server health check. Returns ok if the server is running.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
+                },
+            ),
+            Tool(
+                name="stats",
+                description="Index statistics. "
+                "Returns file count, chunks, index size, query latency, and startup time.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {},
                 },
             ),
             Tool(
@@ -177,6 +204,46 @@ def create_server() -> Server:
 
             return [TextContent(type="text", text="\n".join(lines))]
 
+        if name == "status":
+            if _progress is None:
+                text = "Ready"
+            else:
+                d = _progress.to_dict()
+                if d["state"] == "ready":
+                    text = "Ready"
+                elif d["state"] == "error":
+                    text = f"Error: {d.get('error', 'unknown')}"
+                else:
+                    text = (
+                        f"Indexing: {d['indexed']}/{d['total']} "
+                        f"files ({d['percent']}%)"
+                    )
+            return [TextContent(type="text", text=text)]
+
+        if name == "health":
+            return [TextContent(type="text", text="ok")]
+
+        if name == "stats":
+            if _vector_store is None:
+                return CallToolResult(
+                    content=[TextContent(type="text", text="Server not initialized")],
+                    isError=True,
+                )
+            files = await _vector_store.list_all()
+            lines = [
+                f"Indexed files: {len(files)}",
+                f"Total chunks:  {sum(files.values())}",
+                f"Index size:    {_vector_store.get_db_size()} bytes",
+            ]
+            if _stats:
+                latency = _stats.avg_query_latency_ms()
+                if latency is not None:
+                    lines.append(f"Avg latency:   {latency:.1f}ms")
+                startup = _stats.startup_duration_ms()
+                if startup is not None:
+                    lines.append(f"Startup time:  {startup:.0f}ms")
+            return [TextContent(type="text", text="\n".join(lines))]
+
         if name != "search":
             return CallToolResult(
                 content=[TextContent(type="text", text=f"Unknown tool: {name}")],
@@ -247,14 +314,17 @@ def init_server(
     embedding_service: EmbeddingService,
     vector_store: VectorStore,
     stats: "StatsTracker | None" = None,
+    progress: "IndexingProgress | None" = None,
     project_config: ProjectConfig | None = None,
     root_path: Path | None = None,
 ) -> None:
     """Initialize the server with dependencies."""
-    global _embedding_service, _vector_store, _stats, _project_config, _root_path
+    global _embedding_service, _vector_store, _stats, _progress
+    global _project_config, _root_path
     _embedding_service = embedding_service
     _vector_store = vector_store
     _stats = stats
+    _progress = progress
     _project_config = project_config
     _root_path = root_path
 
@@ -263,11 +333,12 @@ async def run_mcp_server(
     embedding_service: EmbeddingService,
     vector_store: VectorStore,
     stats: "StatsTracker | None" = None,
+    progress: "IndexingProgress | None" = None,
     project_config: ProjectConfig | None = None,
     root_path: Path | None = None,
 ) -> None:
     """Run the MCP server over stdio."""
-    init_server(embedding_service, vector_store, stats, project_config, root_path)
+    init_server(embedding_service, vector_store, stats, progress, project_config, root_path)
     server = create_server()
 
     async with stdio_server() as (read_stream, write_stream):

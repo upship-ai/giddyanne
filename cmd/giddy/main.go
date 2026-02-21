@@ -463,6 +463,51 @@ func ensureServer(root, storageDir string) (int, error) {
 	return startServer(root, storageDir, false, 0, "")
 }
 
+// waitForReady polls /status until the server is done indexing.
+// In verbose mode, prints progress to stderr. Otherwise silent.
+func waitForReady(port int, verbose bool) error {
+	statusURL := fmt.Sprintf("http://127.0.0.1:%d/status", port)
+	lastPercent := -1
+
+	for {
+		resp, err := http.Get(statusURL)
+		if err != nil {
+			return fmt.Errorf("failed to reach server: %w", err)
+		}
+
+		var status StatusResponse
+		err = json.NewDecoder(resp.Body).Decode(&status)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("failed to parse status: %w", err)
+		}
+
+		switch status.State {
+		case "ready":
+			if verbose && lastPercent >= 0 {
+				fmt.Fprintf(os.Stderr, "\rIndexing complete.                    \n")
+			}
+			return nil
+		case "error":
+			return fmt.Errorf("indexing error: %s", status.Error)
+		case "indexing":
+			if verbose && status.Percent != lastPercent {
+				fmt.Fprintf(os.Stderr, "\rIndexing: %d/%d files (%d%%)", status.Indexed, status.Total, status.Percent)
+				lastPercent = status.Percent
+			} else if lastPercent < 0 {
+				lastPercent = 0 // mark that we entered a wait state
+			}
+		default: // "starting"
+			if verbose && lastPercent < 0 {
+				fmt.Fprintf(os.Stderr, "Waiting for server to start indexing...")
+				lastPercent = 0
+			}
+		}
+
+		time.Sleep(pollInterval)
+	}
+}
+
 func runSearch(args []string) {
 	var query string
 	limit := 10
@@ -534,6 +579,12 @@ func runSearch(args []string) {
 	port, err := ensureServer(root, storageDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error starting server: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Wait for indexing to complete before searching
+	if err := waitForReady(port, verbose); err != nil {
+		fmt.Fprintf(os.Stderr, "Error waiting for server: %v\n", err)
 		os.Exit(1)
 	}
 

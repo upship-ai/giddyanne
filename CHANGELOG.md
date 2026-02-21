@@ -4,6 +4,16 @@ All notable changes to giddyanne will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-02-20
+
+### Added
+
+- **MCP status/health/stats tools**: AI assistants can now check indexing progress, server health, and index statistics directly via MCP
+
+### Fixed
+
+- **`giddy find` waits for indexing on cold start**: Previously returned a 503 error and exited if the server was still indexing. Now silently waits until ready, then returns results. Use `--verbose` to see progress.
+
 ## [1.3.1] - 2026-02-20
 
 ### Added
