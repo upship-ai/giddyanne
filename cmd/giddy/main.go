@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -68,7 +69,7 @@ type StatsResponse struct {
 }
 
 // commands defines all available commands with their full names.
-var commands = []string{"up", "down", "bounce", "find", "log", "status", "health", "init", "install", "mcp", "clean", "drop", "completion", "help"}
+var commands = []string{"up", "down", "bounce", "find", "log", "status", "health", "sitemap", "init", "install", "mcp", "clean", "drop", "completion", "help"}
 
 // matchCommand finds a command by prefix. Returns the command name or empty string if ambiguous/not found.
 func matchCommand(input string) (string, []string) {
@@ -139,6 +140,8 @@ func main() {
 		runStatus()
 	case "health":
 		runStats(os.Args[2:])
+	case "sitemap":
+		runSitemap(os.Args[2:])
 	case "log":
 		runMonitor()
 	case "init":
@@ -168,6 +171,7 @@ Usage:
   giddy bounce [options]          Restart the server
   giddy status                    Server status
   giddy health [options]          Diagnostic information
+  giddy sitemap [options]         List indexed files
   giddy log                       Stream server logs
   giddy init                      Print setup prompt for new projects
   giddy install                   Download embedding model (~90MB, one-time)
@@ -195,8 +199,15 @@ Up/Bounce options:
 Health options:
   --verbose      List all indexed files
 
+Sitemap options:
+  --verbose      Show chunk counts and modification times
+  --json         Output as JSON
+
 Clean options:
-  --force        Skip confirmation prompt`)
+  --force        Skip confirmation prompt
+
+Global options:
+  --version, -V  Print version and exit`)
 }
 
 var errNoProject = errors.New("no project found")
@@ -938,6 +949,232 @@ func runStats(args []string) {
 	}
 }
 
+// SitemapPathGroup is a configured path from .giddyanne.yaml.
+type SitemapPathGroup struct {
+	Path        string `json:"path"`
+	Description string `json:"description"`
+}
+
+// SitemapResponse is the API response for /sitemap (default mode).
+type SitemapResponse struct {
+	Files []string           `json:"files"`
+	Count int                `json:"count"`
+	Paths []SitemapPathGroup `json:"paths,omitempty"`
+}
+
+// SitemapVerboseFile is a single file entry in verbose sitemap response.
+type SitemapVerboseFile struct {
+	Path   string  `json:"path"`
+	Chunks int     `json:"chunks"`
+	Mtime  float64 `json:"mtime"`
+}
+
+// SitemapVerboseResponse is the API response for /sitemap?verbose=true.
+type SitemapVerboseResponse struct {
+	Files []SitemapVerboseFile `json:"files"`
+	Count int                  `json:"count"`
+	Paths []SitemapPathGroup   `json:"paths,omitempty"`
+}
+
+// treeNode represents a node in a file tree for display purposes.
+type treeNode struct {
+	name     string
+	children []*treeNode
+	suffix   string // display suffix for leaf files (verbose info)
+}
+
+func treeInsert(node *treeNode, parts []string, suffix string) {
+	if len(parts) == 1 {
+		node.children = append(node.children, &treeNode{name: parts[0], suffix: suffix})
+		return
+	}
+	dirName := parts[0]
+	for _, c := range node.children {
+		if c.name == dirName && c.children != nil {
+			treeInsert(c, parts[1:], suffix)
+			return
+		}
+	}
+	dir := &treeNode{name: dirName, children: []*treeNode{}}
+	node.children = append(node.children, dir)
+	treeInsert(dir, parts[1:], suffix)
+}
+
+func treePrint(node *treeNode, prefix string) {
+	for i, child := range node.children {
+		last := i == len(node.children)-1
+		connector := "├── "
+		if last {
+			connector = "└── "
+		}
+		if child.children != nil {
+			fmt.Printf("%s%s%s/\n", prefix, connector, child.name)
+			nextPrefix := prefix + "│   "
+			if last {
+				nextPrefix = prefix + "    "
+			}
+			treePrint(child, nextPrefix)
+		} else {
+			fmt.Printf("%s%s%s%s\n", prefix, connector, child.name, child.suffix)
+		}
+	}
+}
+
+// printFileTree prints files matching groupPrefix as a tree with connectors.
+func printFileTree(groupPrefix string, filePaths []string, fileSuffixes map[string]string) {
+	root := &treeNode{children: []*treeNode{}}
+	for _, f := range filePaths {
+		if !strings.HasPrefix(f, groupPrefix) {
+			continue
+		}
+		rel := strings.TrimPrefix(f, groupPrefix)
+		if rel == "" {
+			continue
+		}
+		parts := strings.Split(rel, "/")
+		suffix := ""
+		if fileSuffixes != nil {
+			suffix = fileSuffixes[f]
+		}
+		treeInsert(root, parts, suffix)
+	}
+	treePrint(root, "")
+}
+
+func runSitemap(args []string) {
+	verbose := false
+	jsonOutput := false
+
+	for _, arg := range args {
+		switch arg {
+		case "--verbose", "-v":
+			verbose = true
+		case "--json":
+			jsonOutput = true
+		default:
+			fmt.Fprintf(os.Stderr, "Unknown option: %s\n", arg)
+			os.Exit(1)
+		}
+	}
+
+	root, hasConfig, err := findProjectRoot()
+	if err != nil {
+		if errors.Is(err, errNoProject) {
+			printNoProjectHelp()
+		} else {
+			fmt.Fprintf(os.Stderr, "Error finding project root: %v\n", err)
+		}
+		os.Exit(1)
+	}
+	storageDir := getStorageDir(root, hasConfig)
+
+	port, err := ensureServer(root, storageDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error starting server: %v\n", err)
+		os.Exit(1)
+	}
+
+	url := fmt.Sprintf("http://127.0.0.1:%d/sitemap", port)
+	if verbose {
+		url += "?verbose=true"
+	}
+
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Request failed: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to read response: %v\n", err)
+		os.Exit(1)
+	}
+
+	if resp.StatusCode != 200 {
+		fmt.Fprintf(os.Stderr, "Request failed: %s\n", body)
+		os.Exit(1)
+	}
+
+	if jsonOutput {
+		// Pretty-print the raw JSON
+		var raw json.RawMessage
+		if err := json.Unmarshal(body, &raw); err != nil {
+			os.Stdout.Write(body)
+			return
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(raw)
+		return
+	}
+
+	rootPrefix := root + "/"
+
+	if verbose {
+		var sitemap SitemapVerboseResponse
+		if err := json.Unmarshal(body, &sitemap); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse response: %v\n", err)
+			os.Exit(1)
+		}
+		// Sort by path for consistent output
+		sort.Slice(sitemap.Files, func(i, j int) bool {
+			return sitemap.Files[i].Path < sitemap.Files[j].Path
+		})
+		suffixes := make(map[string]string)
+		paths := make([]string, len(sitemap.Files))
+		for i, f := range sitemap.Files {
+			rel := strings.TrimPrefix(f.Path, rootPrefix)
+			paths[i] = rel
+			t := time.Unix(int64(f.Mtime), 0)
+			suffixes[rel] = fmt.Sprintf("  %d chunks  %s", f.Chunks, t.Format("2006-01-02 15:04"))
+		}
+		if len(sitemap.Paths) > 0 {
+			for _, pg := range sitemap.Paths {
+				desc := ""
+				if pg.Description != "" {
+					desc = "    " + pg.Description
+				}
+				fmt.Printf("%s%s\n", pg.Path, desc)
+				printFileTree(pg.Path, paths, suffixes)
+			}
+		} else {
+			for _, f := range sitemap.Files {
+				rel := strings.TrimPrefix(f.Path, rootPrefix)
+				t := time.Unix(int64(f.Mtime), 0)
+				fmt.Printf("%-60s %3d chunks  %s\n", rel, f.Chunks, t.Format("2006-01-02 15:04"))
+			}
+		}
+		fmt.Printf("\n%d files indexed\n", sitemap.Count)
+	} else {
+		var sitemap SitemapResponse
+		if err := json.Unmarshal(body, &sitemap); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to parse response: %v\n", err)
+			os.Exit(1)
+		}
+		// Make paths relative
+		relFiles := make([]string, len(sitemap.Files))
+		for i, f := range sitemap.Files {
+			relFiles[i] = strings.TrimPrefix(f, rootPrefix)
+		}
+		if len(sitemap.Paths) > 0 {
+			for _, pg := range sitemap.Paths {
+				desc := ""
+				if pg.Description != "" {
+					desc = "    " + pg.Description
+				}
+				fmt.Printf("%s%s\n", pg.Path, desc)
+				printFileTree(pg.Path, relFiles, nil)
+			}
+		} else {
+			for _, path := range relFiles {
+				fmt.Println(path)
+			}
+		}
+	}
+}
+
 func formatBytes(bytes int64) string {
 	const (
 		KB = 1024
@@ -1311,7 +1548,7 @@ _giddy_completions() {
     local prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # Commands
-    local commands="up down bounce find log status health init install mcp clean drop completion help"
+    local commands="up down bounce find log status health sitemap init install mcp clean drop completion help"
 
     # Complete command as first argument
     if [[ ${COMP_CWORD} -eq 1 ]]; then
@@ -1342,6 +1579,9 @@ _giddy_completions() {
         health|he)
             COMPREPLY=($(compgen -W "--verbose" -- "${cur}"))
             ;;
+        sitemap|si)
+            COMPREPLY=($(compgen -W "--verbose --json" -- "${cur}"))
+            ;;
         clean|cl)
             COMPREPLY=($(compgen -W "--force" -- "${cur}"))
             ;;
@@ -1368,6 +1608,7 @@ _giddy() {
         'log:Stream server logs'
         'status:Server status'
         'health:Diagnostic information'
+        'sitemap:List indexed files'
         'init:Print setup prompt for new projects'
         'install:Download embedding model'
         'mcp:Run MCP server (for Claude Code)'
@@ -1394,6 +1635,10 @@ _giddy() {
     )
     health_opts=(
         '--verbose[List all indexed files]'
+    )
+    sitemap_opts=(
+        '--verbose[Show chunk counts and modification times]'
+        '--json[Output as JSON]'
     )
     clean_opts=(
         '--force[Skip confirmation prompt]'
@@ -1423,6 +1668,9 @@ _giddy() {
                 health|he)
                     _arguments $health_opts
                     ;;
+                sitemap|si)
+                    _arguments $sitemap_opts
+                    ;;
                 clean|cl)
                     _arguments $clean_opts
                     ;;
@@ -1451,6 +1699,7 @@ complete -c giddy -n '__fish_use_subcommand' -a find -d 'Run semantic search'
 complete -c giddy -n '__fish_use_subcommand' -a log -d 'Stream server logs'
 complete -c giddy -n '__fish_use_subcommand' -a status -d 'Server status'
 complete -c giddy -n '__fish_use_subcommand' -a health -d 'Diagnostic information'
+complete -c giddy -n '__fish_use_subcommand' -a sitemap -d 'List indexed files'
 complete -c giddy -n '__fish_use_subcommand' -a init -d 'Print setup prompt for new projects'
 complete -c giddy -n '__fish_use_subcommand' -a install -d 'Download embedding model'
 complete -c giddy -n '__fish_use_subcommand' -a mcp -d 'Run MCP server (for Claude Code)'
@@ -1475,6 +1724,10 @@ complete -c giddy -n '__fish_seen_subcommand_from up u bounce bo' -l verbose -d 
 
 # health options
 complete -c giddy -n '__fish_seen_subcommand_from health he' -l verbose -d 'List all indexed files'
+
+# sitemap options
+complete -c giddy -n '__fish_seen_subcommand_from sitemap si' -l verbose -d 'Show chunk counts and modification times'
+complete -c giddy -n '__fish_seen_subcommand_from sitemap si' -l json -d 'Output as JSON'
 
 # clean options
 complete -c giddy -n '__fish_seen_subcommand_from clean cl' -l force -d 'Skip confirmation prompt'

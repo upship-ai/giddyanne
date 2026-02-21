@@ -12,6 +12,7 @@ Run `giddy help` for built-in help.
 | `giddy bounce` | Restart the server |
 | `giddy status` | Show server status and indexing progress |
 | `giddy health` | Show index statistics (files, chunks, size) |
+| `giddy sitemap` | List all indexed files |
 | `giddy log` | Stream server logs in real-time |
 | `giddy drop` | Remove search index (keeps logs) |
 | `giddy clean` | Remove all giddyanne data (with confirmation) |
@@ -27,6 +28,7 @@ Commands can be shortened to their prefix:
 | `giddy f` | `giddy find` |
 | `giddy st` | `giddy status` |
 | `giddy h` | `giddy health` |
+| `giddy si` | `giddy sitemap` |
 | `giddy l` | `giddy log` |
 | `giddy b` | `giddy bounce` |
 
@@ -54,7 +56,12 @@ giddy find --full-text    # Full-text search only
 ### Other flags
 
 ```bash
+giddy --version           # Print version and exit
+giddy -V                  # Short form
 giddy health --verbose    # List all files with chunk counts
+giddy sitemap             # List all indexed file paths
+giddy sitemap --verbose   # Include chunk counts and modification times
+giddy sitemap --json      # Output as JSON
 giddy clean --force       # Skip confirmation prompt
 ```
 

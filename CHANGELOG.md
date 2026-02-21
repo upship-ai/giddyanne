@@ -4,6 +4,14 @@ All notable changes to giddyanne will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-02-20
+
+### Added
+
+- **Sitemap command**: new `/sitemap` endpoint, MCP `sitemap` tool, and `giddy sitemap` CLI command. Shows all indexed files, optionally with chunk counts and modification times (`--verbose`). API response includes a `paths` field with `path` and `description` for each configured group.
+- **File-tree sitemap output**: sitemap displays files under their path groups with `├──`/`└──` tree connectors, intermediate directories reconstructed. Verbose mode appends chunk count and mtime inline.
+- **Sitemap API tests**: test coverage for `/sitemap` endpoint with and without config, including verbose mode and empty index
+
 ## [1.2.1] - 2026-02-12
 
 ### Added

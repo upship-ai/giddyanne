@@ -42,7 +42,7 @@ async def main():
     await run_indexing(c)
     watcher = await start_watcher(c)
 
-    await run_mcp_server(c.embedding_service, c.vector_store, c.stats)
+    await run_mcp_server(c.embedding_service, c.vector_store, c.stats, project_config, root_path)
 
 
 if __name__ == "__main__":

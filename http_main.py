@@ -183,7 +183,10 @@ async def main(
     c = await create_components(root_path, project_config, storage_dir, log_path)
 
     # Create API server (before indexing so /status is available)
-    app = create_http_app(c.vector_store, c.embedding_service, c.progress, c.stats)
+    app = create_http_app(
+        c.vector_store, c.embedding_service, c.progress, c.stats,
+        project_config=project_config,
+    )
 
     # Start server and indexing concurrently
     async def background_indexing():

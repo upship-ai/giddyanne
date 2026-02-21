@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .embeddings import EmbeddingService
 from .errors import SearchError
+from .project_config import ProjectConfig
 from .vectorstore import StorageError, VectorStore
 
 
@@ -56,6 +57,7 @@ def create_app(
     embedding_service: EmbeddingService,
     progress: object | None = None,
     stats: object | None = None,
+    project_config: ProjectConfig | None = None,
 ) -> FastAPI:
     """Create the FastAPI application."""
     app = FastAPI(
@@ -148,6 +150,37 @@ def create_app(
             startup_duration_ms=stats.startup_duration_ms() if stats else None,
             files=files,
         )
+
+    @app.get("/sitemap")
+    async def sitemap(verbose: bool = False):
+        """List all indexed file paths."""
+        files = await vector_store.list_all()
+        paths = sorted(files.keys())
+
+        config_paths = None
+        if project_config is not None:
+            config_paths = [
+                {"path": pc.path, "description": pc.description}
+                for pc in project_config.paths
+            ]
+
+        if not verbose:
+            result = {"files": paths, "count": len(paths)}
+            if config_paths is not None:
+                result["paths"] = config_paths
+            return result
+
+        mtimes = await vector_store.get_all_mtimes()
+        result = {
+            "files": [
+                {"path": p, "chunks": files[p], "mtime": mtimes.get(p, 0.0)}
+                for p in paths
+            ],
+            "count": len(paths),
+        }
+        if config_paths is not None:
+            result["paths"] = config_paths
+        return result
 
     @app.post("/reindex")
     async def reindex():
