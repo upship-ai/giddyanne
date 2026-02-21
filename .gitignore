@@ -41,6 +41,11 @@ ENV/
 .giddyanne/
 /giddy
 /data
+/docs
+
+# Benchmark configs (except giddyanne default)
+benchmarks/configs/*
+!benchmarks/configs/giddyanne.yaml
 
 # VSCode extension build
 vscode/node_modules/

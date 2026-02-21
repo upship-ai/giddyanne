@@ -134,8 +134,8 @@ class Foo:
         assert "Foo" in all_content
 
 
-class TestLanguageAwareChunking:
-    """Tests for language-specific chunking."""
+class TestTreeSitterChunking:
+    """Tests for tree-sitter AST-based chunking."""
 
     def test_python_splits_on_def(self):
         content = '''def foo():
@@ -171,8 +171,41 @@ class Bar:
         assert "class Foo" in chunks[0].content
         assert "class Bar" in chunks[1].content
 
+    def test_python_decorated_functions(self):
+        content = '''@decorator
+def foo():
+    return 1
+
+@other_decorator
+def bar():
+    return 2'''
+        language = detect_language("test.py")
+        chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
+
+        assert len(chunks) >= 2
+        all_content = " ".join(c.content for c in chunks)
+        assert "@decorator" in all_content
+        assert "foo" in all_content
+        assert "bar" in all_content
+
+    def test_python_imports_merge_with_first_def(self):
+        content = '''import os
+import sys
+
+def main():
+    print("hello")'''
+        language = detect_language("test.py")
+        chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
+
+        # Imports should be merged into the first chunk (either with main or standalone)
+        all_content = " ".join(c.content for c in chunks)
+        assert "import os" in all_content
+        assert "main" in all_content
+
     def test_go_splits_on_func(self):
-        content = '''func main() {
+        content = '''package main
+
+func main() {
     fmt.Println("hello")
 }
 
@@ -183,8 +216,9 @@ func helper() int {
         chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
 
         assert len(chunks) >= 2
-        assert "func main" in chunks[0].content
-        assert "func helper" in chunks[1].content
+        all_content = " ".join(c.content for c in chunks)
+        assert "func main" in all_content
+        assert "func helper" in all_content
 
     def test_javascript_splits_on_function(self):
         content = '''function greet(name) {
@@ -217,6 +251,29 @@ interface Product {
         assert len(chunks) >= 2
         assert "interface User" in chunks[0].content
         assert "interface Product" in chunks[1].content
+
+    def test_rust_splits_on_items(self):
+        content = '''fn main() {
+    println!("hello");
+}
+
+struct Foo {
+    x: i32,
+}
+
+impl Foo {
+    fn new() -> Self {
+        Foo { x: 0 }
+    }
+}'''
+        language = detect_language("main.rs")
+        chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
+
+        assert len(chunks) >= 2
+        all_content = " ".join(c.content for c in chunks)
+        assert "fn main" in all_content
+        assert "struct Foo" in all_content
+        assert "impl Foo" in all_content
 
     def test_sql_splits_on_statements(self):
         content = '''CREATE TABLE users (
@@ -263,3 +320,32 @@ def second():
         assert chunks[0].start_line == 1
         # Second chunk should start after the first
         assert chunks[1].start_line > chunks[0].start_line
+
+    def test_treesitter_line_numbers_accurate(self):
+        content = '''def foo():
+    return 1
+
+def bar():
+    return 2'''
+        language = detect_language("test.py")
+        chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
+
+        # foo is on lines 1-2
+        assert chunks[0].start_line == 1
+        assert chunks[0].end_line == 2
+
+        # bar is on lines 4-5
+        assert chunks[1].start_line == 4
+        assert chunks[1].end_line == 5
+
+    def test_no_ts_language_falls_back_to_blank_lines(self):
+        """Languages with ts_language=None should fall back to blank-line splitting."""
+        content = '''key: value
+
+other: data'''
+        language = detect_language("config.yaml")
+        chunks = chunk_content(content, language=language, min_lines=1, max_lines=50)
+
+        assert len(chunks) >= 2
+        assert "key: value" in chunks[0].content
+        assert "other: data" in chunks[1].content

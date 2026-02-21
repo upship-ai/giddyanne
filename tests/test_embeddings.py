@@ -6,21 +6,31 @@ from src.embeddings import (
     ChunkEmbedding,
     EmbeddingProvider,
     EmbeddingService,
+    LocalEmbedding,
+    _needs_trust_remote_code,
+    _query_prefix_for,
 )
 
 
 class MockEmbeddingProvider(EmbeddingProvider):
     """Mock provider for testing without loading real models."""
 
-    def __init__(self, dimension: int = 384):
+    def __init__(self, dimension: int = 384, query_prefix: str = ""):
         self._dimension = dimension
+        self._query_prefix = query_prefix
 
     @property
     def model_name(self) -> str:
         return "mock-model"
 
+    @property
+    def query_prefix(self) -> str:
+        return self._query_prefix
+
     async def embed(self, texts: list[str]) -> list[list[float]]:
         # Return fake embeddings of the right dimension
+        # Store last texts for inspection
+        self.last_texts = texts
         return [[0.1] * self._dimension for _ in texts]
 
     def dimension(self) -> int:
@@ -164,3 +174,50 @@ class TestEmbeddingService:
         assert len(results) == 1
         assert results[0].content_embedding is None
         assert results[0].description_embedding is not None
+
+
+class TestQueryPrefix:
+    def test_coderankmbed_gets_prefix(self):
+        prefix = _query_prefix_for("nomic-ai/CodeRankEmbed")
+        assert prefix.startswith("Represent this query")
+
+    def test_minilm_gets_no_prefix(self):
+        assert _query_prefix_for("all-MiniLM-L6-v2") == ""
+
+    def test_unknown_model_gets_no_prefix(self):
+        assert _query_prefix_for("some-random/model") == ""
+
+    def test_coderankmbed_needs_trust_remote_code(self):
+        assert _needs_trust_remote_code("nomic-ai/CodeRankEmbed") is True
+
+    def test_minilm_no_trust_remote_code(self):
+        assert _needs_trust_remote_code("all-MiniLM-L6-v2") is False
+
+    def test_local_embedding_picks_up_prefix(self):
+        provider = LocalEmbedding(model_name="nomic-ai/CodeRankEmbed")
+        assert provider.query_prefix.startswith("Represent this query")
+
+    def test_local_embedding_default_no_prefix(self):
+        provider = LocalEmbedding(model_name="all-MiniLM-L6-v2")
+        assert provider.query_prefix == ""
+
+    @pytest.mark.asyncio
+    async def test_embed_query_prepends_prefix(self):
+        provider = MockEmbeddingProvider(
+            dimension=128,
+            query_prefix="search_code: ",
+        )
+        service = EmbeddingService(provider)
+
+        await service.embed_query("find auth code")
+
+        assert provider.last_texts == ["search_code: find auth code"]
+
+    @pytest.mark.asyncio
+    async def test_embed_query_no_prefix(self):
+        provider = MockEmbeddingProvider(dimension=128)
+        service = EmbeddingService(provider)
+
+        await service.embed_query("find auth code")
+
+        assert provider.last_texts == ["find auth code"]

@@ -2,7 +2,13 @@
 
 import pytest
 
-from src.vectorstore import SearchResult, VectorStore
+from src.vectorstore import (
+    SearchResult,
+    VectorStore,
+    _apply_category_bias,
+    _classify_file,
+    _deduplicate_by_file,
+)
 
 
 class TestSearchResult:
@@ -463,3 +469,202 @@ class TestVectorStore:
 
         assert len(results) > 0
         assert results[0].path == "/file.py"
+
+
+class TestDeduplicateByFile:
+    def test_keeps_best_scoring_chunk_per_file(self):
+        """Dedup keeps only the highest-scoring chunk per file."""
+        results = [
+            SearchResult("/a.py", 0, 1, 10, "chunk0", "", 0.9, 0.9, 0.0),
+            SearchResult("/a.py", 1, 11, 20, "chunk1", "", 0.7, 0.7, 0.0),
+            SearchResult("/b.py", 0, 1, 10, "chunk0", "", 0.8, 0.8, 0.0),
+        ]
+        deduped = _deduplicate_by_file(results)
+        paths = [r.path for r in deduped]
+        assert paths == ["/a.py", "/b.py"]
+        # /a.py should keep the chunk with score 0.9
+        assert deduped[0].score == 0.9
+        assert deduped[0].chunk_index == 0
+
+    def test_no_duplicate_paths(self):
+        """No two results share the same path after dedup."""
+        results = [
+            SearchResult("/a.py", i, 1, 10, f"chunk{i}", "", 0.5 + i * 0.1, 0.5, 0.0)
+            for i in range(5)
+        ]
+        deduped = _deduplicate_by_file(results)
+        assert len(deduped) == 1
+        assert deduped[0].score == 0.9
+
+    def test_diverse_files_not_crowded_out(self):
+        """Files from other paths aren't lost when one file has many chunks."""
+        results = [
+            # 5 chunks from engine.py dominating
+            SearchResult(
+                "/engine.py", i, i * 10, (i + 1) * 10, f"e{i}", "",
+                0.95 - i * 0.01, 0.9, 0.0,
+            )
+            for i in range(5)
+        ] + [
+            SearchResult("/api.py", 0, 1, 10, "api", "", 0.85, 0.85, 0.0),
+            SearchResult("/utils.py", 0, 1, 10, "utils", "", 0.80, 0.80, 0.0),
+        ]
+        deduped = _deduplicate_by_file(results)
+        paths = {r.path for r in deduped}
+        assert paths == {"/engine.py", "/api.py", "/utils.py"}
+
+    def test_empty_input(self):
+        assert _deduplicate_by_file([]) == []
+
+    def test_sorted_by_score_descending(self):
+        results = [
+            SearchResult("/c.py", 0, 1, 10, "", "", 0.5, 0.5, 0.0),
+            SearchResult("/a.py", 0, 1, 10, "", "", 0.9, 0.9, 0.0),
+            SearchResult("/b.py", 0, 1, 10, "", "", 0.7, 0.7, 0.0),
+        ]
+        deduped = _deduplicate_by_file(results)
+        scores = [r.score for r in deduped]
+        assert scores == [0.9, 0.7, 0.5]
+
+
+class TestSearchDeduplication:
+    """Integration test: search methods deduplicate results by file."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        return tmp_path / "test_dedup.lance"
+
+    @pytest.fixture
+    async def store(self, db_path):
+        store = VectorStore(db_path, dimension=128)
+        await store.connect()
+        yield store
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_deduplicates(self, store):
+        """Semantic search returns at most one result per file."""
+        target = [0.9] + [0.1] * 127
+        slightly_off = [0.85] + [0.15] * 127
+
+        # Two chunks from same file, both close to query
+        await store.upsert("/engine.py", 0, 1, 20, "chunk0", target, target)
+        await store.upsert("/engine.py", 1, 21, 40, "chunk1", slightly_off, slightly_off)
+        # One chunk from another file
+        await store.upsert("/api.py", 0, 1, 20, "api chunk", slightly_off, slightly_off)
+
+        results = await store.search(query_embedding=target, limit=10)
+        paths = [r.path for r in results]
+        assert len(paths) == len(set(paths)), f"Duplicate paths in results: {paths}"
+        assert "/engine.py" in paths
+        assert "/api.py" in paths
+
+
+class TestClassifyFile:
+    def test_source_file(self):
+        assert _classify_file("src/vectorstore.py") == "code"
+
+    def test_top_level_source(self):
+        assert _classify_file("main.py") == "code"
+
+    def test_test_dir(self):
+        assert _classify_file("tests/test_vectorstore.py") == "test"
+
+    def test_test_singular_dir(self):
+        assert _classify_file("test/helpers.py") == "test"
+
+    def test_test_prefix_filename(self):
+        assert _classify_file("src/test_utils.py") == "test"
+
+    def test_test_suffix_filename(self):
+        assert _classify_file("src/vectorstore_test.py") == "test"
+
+    def test_markdown_doc(self):
+        assert _classify_file("README.md") == "docs"
+
+    def test_rst_doc(self):
+        assert _classify_file("docs/guide.rst") == "docs"
+
+    def test_txt_doc(self):
+        assert _classify_file("notes.txt") == "docs"
+
+    def test_docs_dir(self):
+        assert _classify_file("docs/api.py") == "docs"
+
+    def test_nested_path(self):
+        assert _classify_file("src/lib/internal/engine.py") == "code"
+
+    def test_nested_test_dir(self):
+        assert _classify_file("src/tests/integration/test_api.py") == "test"
+
+
+class TestApplyCategoryBias:
+    def _make_result(self, path: str, score: float) -> SearchResult:
+        return SearchResult(path, 0, 1, 10, "content", "", score, score, 0.0)
+
+    def test_code_weight_unchanged(self):
+        results = _apply_category_bias([self._make_result("src/app.py", 1.0)])
+        assert results[0].score == 1.0
+
+    def test_test_weight_reduced(self):
+        results = _apply_category_bias([self._make_result("tests/test_app.py", 1.0)])
+        assert results[0].score == pytest.approx(0.8)
+
+    def test_docs_weight_reduced(self):
+        results = _apply_category_bias([self._make_result("README.md", 1.0)])
+        assert results[0].score == pytest.approx(0.6)
+
+    def test_does_not_mutate_originals(self):
+        original = self._make_result("tests/test_app.py", 1.0)
+        _apply_category_bias([original])
+        assert original.score == 1.0
+
+    def test_source_ranks_above_test_with_equal_raw_scores(self):
+        results = _apply_category_bias([
+            self._make_result("tests/test_search.py", 0.9),
+            self._make_result("src/search.py", 0.9),
+        ])
+        results.sort(key=lambda x: x.score, reverse=True)
+        assert results[0].path == "src/search.py"
+
+
+class TestCategoryBiasIntegration:
+    """Integration: source files rank above test files with similar embeddings."""
+
+    @pytest.fixture
+    def db_path(self, tmp_path):
+        return tmp_path / "test_bias.lance"
+
+    @pytest.fixture
+    async def store(self, db_path):
+        store = VectorStore(db_path, dimension=128)
+        await store.connect()
+        yield store
+        await store.close()
+
+    @pytest.mark.asyncio
+    async def test_source_ranks_above_test(self, store):
+        """Source file should rank above test file when embeddings are identical."""
+        embedding = [0.9] + [0.1] * 127
+
+        await store.upsert(
+            path="tests/test_search.py",
+            chunk_index=0,
+            start_line=1,
+            end_line=20,
+            content="def test_search(): assert search() == expected",
+            path_embedding=embedding,
+            content_embedding=embedding,
+        )
+        await store.upsert(
+            path="src/search.py",
+            chunk_index=0,
+            start_line=1,
+            end_line=20,
+            content="def search(): return find_results()",
+            path_embedding=embedding,
+            content_embedding=embedding,
+        )
+
+        results = await store.search(query_embedding=embedding, limit=10)
+        assert results[0].path == "src/search.py"

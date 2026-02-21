@@ -28,6 +28,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Models that require a prefix on search queries (not on document content).
+# Key: model name suffix (matched against the end of model_name).
+# Value: prefix string to prepend to queries.
+QUERY_PREFIX_BY_MODEL: dict[str, str] = {
+    "CodeRankEmbed": "Represent this query for searching relevant code: ",
+}
+
+# Models that need trust_remote_code=True when loading.
+TRUST_REMOTE_CODE_MODELS: set[str] = {
+    "CodeRankEmbed",
+}
+
+
+def _query_prefix_for(model_name: str) -> str:
+    """Return the query prefix for a model, or empty string if none needed."""
+    for suffix, prefix in QUERY_PREFIX_BY_MODEL.items():
+        if model_name.endswith(suffix):
+            return prefix
+    return ""
+
+
+def _needs_trust_remote_code(model_name: str) -> bool:
+    """Check if a model needs trust_remote_code=True."""
+    return any(model_name.endswith(s) for s in TRUST_REMOTE_CODE_MODELS)
+
 
 class EmbeddingProvider(ABC):
     """Base class for embedding providers."""
@@ -37,6 +62,11 @@ class EmbeddingProvider(ABC):
     def model_name(self) -> str:
         """Return the model name."""
         ...
+
+    @property
+    def query_prefix(self) -> str:
+        """Prefix to prepend to search queries (empty for most models)."""
+        return ""
 
     @abstractmethod
     async def embed(self, texts: list[str]) -> list[list[float]]:
@@ -55,16 +85,24 @@ class LocalEmbedding(EmbeddingProvider):
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self._model_name = model_name
         self._model = None
+        self._query_prefix = _query_prefix_for(model_name)
 
     @property
     def model_name(self) -> str:
         return self._model_name
 
+    @property
+    def query_prefix(self) -> str:
+        return self._query_prefix
+
     def _load_model(self):
         if self._model is None:
             logger.debug(f"Loading SentenceTransformer model: {self.model_name}")
             from sentence_transformers import SentenceTransformer
-            self._model = SentenceTransformer(self.model_name)
+            kwargs = {}
+            if _needs_trust_remote_code(self.model_name):
+                kwargs["trust_remote_code"] = True
+            self._model = SentenceTransformer(self.model_name, **kwargs)
             logger.debug(f"Model loaded: {self.model_name}")
         return self._model
 
@@ -178,6 +216,9 @@ class EmbeddingService:
     ) -> tuple[list[float], bool]:
         """Generate embedding for a search query.
 
+        Applies the model's query prefix if one is configured (e.g. CodeRankEmbed
+        requires a specific instruction prefix on queries but not on documents).
+
         Returns:
             Tuple of (embedding, cache_hit).
         """
@@ -186,7 +227,8 @@ class EmbeddingService:
             if cached is not None:
                 return cached, True
 
-        embeddings = await self.provider.embed([query])
+        prefixed = self.provider.query_prefix + query
+        embeddings = await self.provider.embed([prefixed])
         embedding = embeddings[0]
 
         if cache:

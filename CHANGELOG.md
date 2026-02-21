@@ -2,7 +2,20 @@
 
 All notable changes to giddyanne will be documented in this file.
 
-## [Unreleased]
+## [1.4.0] - 2026-02-21
+
+### Added
+
+- **Search result deduplication**: Results are now deduplicated by file — only the best-scoring chunk per file is kept, freeing result slots for diverse files. Applied to all three search methods (semantic, full-text, hybrid). Over-fetches from LanceDB to compensate for collapsed results.
+- **File category scoring bias**: Search scores are now weighted by file type — source code files rank at full weight (1.0×), test files at 0.8×, and docs at 0.6×. When a test file and its source have similar relevance, the source file surfaces first.
+
+### Changed
+
+- **Tree-sitter AST chunking**: Replaced string-based separator splitting with tree-sitter AST parsing for code chunking. Functions, classes, and other definitions are now split at real node boundaries instead of pattern-matching on strings like `"\ndef "`. Falls back to blank-line splitting for languages without a tree-sitter grammar. Adds `tree-sitter-language-pack` dependency.
+- **Configurable embedding model**: `local_model` in `.giddyanne.yaml` lets you swap embedding models. Each model gets its own index directory. Default remains `all-MiniLM-L6-v2` — benchmarking showed `nomic-ai/CodeRankEmbed` (768d, code-specialized) indexes 5-6x slower and can't finish indexing a modest ~300-file repo on a MacBook Pro, with no quality gain to justify it.
+- **Cosine distance for vector search**: Switched from L2 to cosine distance. Scores now display as meaningful 0-1 values instead of near-zero floats.
+- **Query prefix support**: Models that require instruction prefixes on search queries (like CodeRankEmbed) are handled automatically. Document embeddings are unaffected.
+- **`giddy install` reads model from config**: No longer hardcodes the model name — picks up `local_model` from `.giddyanne.yaml` or uses the default.
 
 ## [1.3.2] - 2026-02-20
 

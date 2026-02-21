@@ -1,8 +1,8 @@
 """Content chunking for better search granularity.
 
-Supports language-aware chunking that respects code structure (functions,
+Supports tree-sitter AST-based chunking that respects code structure (functions,
 classes, etc.) when a language is detected, falling back to blank-line
-splitting for unknown languages.
+splitting for unknown languages or parse failures.
 """
 
 from dataclasses import dataclass
@@ -29,9 +29,8 @@ def chunk_content(
     """Split content into chunks using language-aware boundaries.
 
     Strategy:
-    1. If language is known, recursively split using language-specific
-       separators (class, function definitions, etc.)
-    2. If language is unknown, split on blank lines (natural boundaries)
+    1. If language has a tree-sitter grammar, parse and split on AST node boundaries
+    2. Otherwise, split on blank lines (natural boundaries)
     3. Merge consecutive small chunks until they reach min_lines
     4. Split chunks larger than max_lines with overlap
 
@@ -48,9 +47,12 @@ def chunk_content(
     if not content.strip():
         return []
 
-    # Step 1: Initial split using language separators or blank lines
-    if language:
-        segments = _split_with_separators(content, language.separators)
+    # Step 1: Initial split using tree-sitter AST or blank lines
+    if language and language.ts_language and language.node_types:
+        segments = _split_with_treesitter(content, language)
+        if segments is None:
+            # Parse failed, fall back
+            segments = _split_on_blank_lines(content)
     else:
         segments = _split_on_blank_lines(content)
 
@@ -63,58 +65,95 @@ def chunk_content(
     return chunks
 
 
-def _split_with_separators(content: str, separators: tuple[str, ...]) -> list[Chunk]:
-    """Recursively split content using ordered separators.
+def _split_with_treesitter(content: str, language: LanguageSpec) -> list[Chunk] | None:
+    """Split content using tree-sitter AST node boundaries.
 
-    Tries each separator in order. If a separator produces splits,
-    recursively applies remaining separators to chunks that are still large.
+    Returns None if parsing fails (caller should fall back to blank-line splitting).
     """
+    try:
+        from tree_sitter_language_pack import get_parser
+    except ImportError:
+        return None
+
+    try:
+        parser = get_parser(language.ts_language)
+    except Exception:
+        return None
+
+    tree = parser.parse(content.encode("utf-8"))
+    root = tree.root_node
+
+    if root.child_count == 0:
+        return None
+
     lines = content.split("\n")
+    node_types = set(language.node_types)
+    chunks: list[Chunk] = []
 
-    # Try each separator until one produces a split
-    for sep in separators:
-        if sep == "\n\n":
-            # Special case: blank line splitting (final fallback)
-            return _split_on_blank_lines(content)
+    # Accumulator for non-matching nodes (imports, comments, etc.)
+    pending_start: int | None = None
+    pending_end: int | None = None
+    pending_lines: list[str] = []
 
-        parts = content.split(sep)
-        if len(parts) > 1:
-            # This separator worked - build chunks
-            chunks = []
-            current_pos = 0
+    def flush_pending():
+        """Merge pending non-matching lines into the previous chunk or start a new one."""
+        nonlocal pending_start, pending_end, pending_lines
+        if pending_start is None:
+            return
+        pending_content = "\n".join(pending_lines)
+        if not pending_content.strip():
+            pending_start = None
+            pending_end = None
+            pending_lines = []
+            return
+        if chunks:
+            # Merge into the previous chunk
+            prev = chunks[-1]
+            chunks[-1] = Chunk(
+                start_line=prev.start_line,
+                end_line=pending_end,
+                content=prev.content + "\n" + pending_content,
+            )
+        else:
+            # No previous chunk — this becomes the start of a new chunk
+            chunks.append(Chunk(
+                start_line=pending_start,
+                end_line=pending_end,
+                content=pending_content,
+            ))
+        pending_start = None
+        pending_end = None
+        pending_lines = []
 
-            for i, part in enumerate(parts):
-                if i > 0:
-                    # Re-add the separator (it's part of the next chunk)
-                    part = sep.lstrip("\n") + part
+    for child in root.children:
+        child_start = child.start_point[0]  # 0-indexed row
+        child_end = child.end_point[0]  # 0-indexed row
 
-                if not part.strip():
-                    # Count lines in empty part for position tracking
-                    current_pos += part.count("\n")
-                    continue
+        start_line = child_start + 1  # 1-indexed
+        end_line = child_end + 1  # 1-indexed
 
-                # Calculate line positions
-                start_line = current_pos + 1
-                part_lines = part.count("\n") + 1
-                end_line = current_pos + part_lines
+        node_lines = lines[child_start : child_end + 1]
+        node_content = "\n".join(node_lines)
 
-                chunks.append(Chunk(
-                    start_line=start_line,
-                    end_line=end_line,
-                    content=part.strip(),
-                ))
+        if child.type in node_types:
+            # Flush any pending non-matching content first
+            flush_pending()
+            chunks.append(Chunk(
+                start_line=start_line,
+                end_line=end_line,
+                content=node_content,
+            ))
+        else:
+            # Accumulate non-matching nodes
+            if pending_start is None:
+                pending_start = start_line
+            pending_end = end_line
+            pending_lines.extend(node_lines)
 
-                current_pos = end_line
+    # Flush any trailing non-matching content
+    flush_pending()
 
-            if chunks:
-                return chunks
-
-    # No separator worked, return as single chunk
-    return [Chunk(
-        start_line=1,
-        end_line=len(lines),
-        content=content.strip(),
-    )]
+    return chunks if chunks else None
 
 
 def _split_on_blank_lines(content: str) -> list[Chunk]:

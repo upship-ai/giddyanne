@@ -1,0 +1,29 @@
+project_root: ../..  # relative to this config file
+
+queries:
+  - query: "error handling in search operations"
+    expected:
+      - src/errors.py
+      - src/api.py
+      - src/vectorstore.py
+      - src/mcp_server.py
+
+  - query: "async patterns and concurrency"
+    expected:
+      - src/engine.py
+      - src/watcher.py
+      - src/api.py
+      - src/startup.py
+
+  - query: "configuration and settings"
+    expected:
+      - src/project_config.py
+      - src/startup.py
+
+  - query: "tree-sitter AST chunking by node type"
+    expected:
+      - src/chunker.py
+
+  - query: "RRF reranking for hybrid search"
+    expected:
+      - src/vectorstore.py

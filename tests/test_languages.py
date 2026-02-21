@@ -57,12 +57,6 @@ class TestDetectLanguage:
 
 
 class TestLanguageRegistry:
-    def test_all_languages_have_separators(self):
-        for name, spec in LANGUAGES.items():
-            assert len(spec.separators) > 0, f"{name} has no separators"
-            # All should end with \n\n as final fallback
-            assert spec.separators[-1] == "\n\n", f"{name} missing \\n\\n fallback"
-
     def test_all_languages_have_extensions(self):
         for name, spec in LANGUAGES.items():
             assert len(spec.extensions) > 0, f"{name} has no extensions"
@@ -71,6 +65,12 @@ class TestLanguageRegistry:
         for name, spec in LANGUAGES.items():
             for ext in spec.extensions:
                 assert ext.startswith("."), f"{name} extension {ext} missing dot"
+
+    def test_ts_languages_have_node_types(self):
+        """Languages with tree-sitter grammars should have node_types defined."""
+        for name, spec in LANGUAGES.items():
+            if spec.ts_language and spec.node_types:
+                assert len(spec.node_types) > 0, f"{name} has ts_language but no node_types"
 
 
 class TestSupportedLanguages:

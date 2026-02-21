@@ -143,8 +143,9 @@ Defaults work well for most codebases. Smaller chunks give more precise results 
 With a config file, the database is stored at `.giddyanne/<model-name>/vectors.lance`. In zero-config mode, it's stored in the system temp directory. Each model gets its own index, so you can switch models without losing data.
 
 Available models:
-- `all-MiniLM-L6-v2` (default) - Good balance of speed and quality
-- `all-mpnet-base-v2` - Higher quality, slower
-- `paraphrase-MiniLM-L3-v2` - Faster, lower quality
+- `all-MiniLM-L6-v2` (default) — Good balance of speed and quality
+- `all-mpnet-base-v2` — Higher quality, slower
+- `paraphrase-MiniLM-L3-v2` — Faster, lower quality
+- `nomic-ai/CodeRankEmbed` — Code-specialized (768d), but 5-6x slower indexing with no measurable quality gain. Unusable on laptop hardware for repos over ~100 files.
 
 [← Back to README.md](README.md)

@@ -27,6 +27,66 @@ class SearchResult:
     description_score: float
 
 
+_FILE_CATEGORY_WEIGHTS = {
+    "code": 1.0,
+    "test": 0.8,
+    "docs": 0.6,
+}
+
+_DOCS_EXTENSIONS = {".md", ".rst", ".txt"}
+
+
+def _classify_file(path: str) -> str:
+    """Classify a file path as 'code', 'test', or 'docs'."""
+    parts = path.replace("\\", "/").split("/")
+    filename = parts[-1] if parts else ""
+
+    # Test detection: path contains tests/ or test/, or filename starts with
+    # test_ or ends with _test.py
+    for part in parts[:-1]:
+        if part in ("tests", "test"):
+            return "test"
+    if filename.startswith("test_") or filename.endswith("_test.py"):
+        return "test"
+
+    # Docs detection: extension or docs/ prefix
+    ext = "." + filename.rsplit(".", 1)[-1] if "." in filename else ""
+    if ext in _DOCS_EXTENSIONS:
+        return "docs"
+    if parts and parts[0] == "docs":
+        return "docs"
+
+    return "code"
+
+
+def _apply_category_bias(results: list[SearchResult]) -> list[SearchResult]:
+    """Apply file-category score multipliers. Returns a new list."""
+    biased = []
+    for r in results:
+        weight = _FILE_CATEGORY_WEIGHTS.get(_classify_file(r.path), 1.0)
+        biased.append(SearchResult(
+            path=r.path,
+            chunk_index=r.chunk_index,
+            start_line=r.start_line,
+            end_line=r.end_line,
+            content=r.content,
+            description=r.description,
+            score=r.score * weight,
+            content_score=r.content_score,
+            description_score=r.description_score,
+        ))
+    return biased
+
+
+def _deduplicate_by_file(results: list[SearchResult]) -> list[SearchResult]:
+    """Keep only the highest-scoring chunk per file."""
+    best: dict[str, SearchResult] = {}
+    for r in results:
+        if r.path not in best or r.score > best[r.path].score:
+            best[r.path] = r
+    return sorted(best.values(), key=lambda x: x.score, reverse=True)
+
+
 class VectorStore:
     """LanceDB-backed vector store for file embeddings."""
 
@@ -213,9 +273,10 @@ class VectorStore:
         if self._table is None:
             raise RuntimeError("Not connected to database")
 
-        # Search content embeddings
+        # Search content embeddings (cosine: 0=identical, 2=opposite)
         content_results = (
             self._table.search(query_embedding, vector_column_name="content_embedding")
+            .metric("cosine")
             .limit(limit * 2)  # Fetch extra for merging
             .to_list()
         )
@@ -223,6 +284,7 @@ class VectorStore:
         # Search description embeddings (for path-level boosting)
         desc_results = (
             self._table.search(query_embedding, vector_column_name="description_embedding")
+            .metric("cosine")
             .limit(limit * 2)
             .to_list()
         )
@@ -253,8 +315,10 @@ class VectorStore:
                 description_score=description_score,
             ))
 
-        # Sort by combined score and return top results
+        # Apply category bias, sort, deduplicate, and return top results
+        results = _apply_category_bias(results)
         results.sort(key=lambda x: x.score, reverse=True)
+        results = _deduplicate_by_file(results)
         return results[:limit]
 
     async def search_fts(
@@ -274,14 +338,14 @@ class VectorStore:
         try:
             results = (
                 self._table.search(query_text, query_type="fts")
-                .limit(limit)
+                .limit(limit * 3)
                 .to_list()
             )
         except Exception:
             # FTS may not be available, return empty results
             return []
 
-        return [
+        fts_results = [
             SearchResult(
                 path=r["path"],
                 chunk_index=r["chunk_index"],
@@ -295,6 +359,7 @@ class VectorStore:
             )
             for r in results
         ]
+        return _deduplicate_by_file(_apply_category_bias(fts_results))[:limit]
 
     async def search_hybrid(
         self,
@@ -320,14 +385,14 @@ class VectorStore:
                 .vector(query_embedding)
                 .text(query_text)
                 .rerank(RRFReranker())
-                .limit(limit)
+                .limit(limit * 3)
                 .to_list()
             )
         except Exception:
             # Fall back to semantic-only if hybrid fails
             return await self.search(query_embedding, limit)
 
-        return [
+        hybrid_results = [
             SearchResult(
                 path=r["path"],
                 chunk_index=r["chunk_index"],
@@ -341,6 +406,7 @@ class VectorStore:
             )
             for r in results
         ]
+        return _deduplicate_by_file(_apply_category_bias(hybrid_results))[:limit]
 
     async def list_all(self) -> dict[str, int]:
         """List all indexed file paths with their chunk counts."""
