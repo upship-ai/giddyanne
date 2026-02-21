@@ -2,6 +2,12 @@
 
 All notable changes to giddyanne will be documented in this file.
 
+## [1.4.1] - 2026-02-21
+
+### Fixed
+
+- **Version references**: Updated all version strings across docs, Emacs package, and VSCode extension
+
 ## [1.4.0] - 2026-02-21
 
 ### Added

@@ -1,6 +1,6 @@
 [project]
 name = "giddyanne"
-version = "1.4.0"
+version = "1.4.1"
 description = "File watcher with semantic search via embeddings"
 requires-python = ">=3.11"
 dependencies = [

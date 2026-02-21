@@ -3,7 +3,7 @@
 ;; Copyright (C) 2025 Joey
 
 ;; Author: Joey
-;; Version: 1.3.2
+;; Version: 1.4.1
 ;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: tools, search, semantic
 ;; URL: https://github.com/mazziv/giddyanne
