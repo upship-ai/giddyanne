@@ -348,15 +348,15 @@
 .ga-how__connector {
   width: 3rem;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--ga-glow), transparent);
+  background: var(--ga-glow);
   margin-top: 20px;
   flex-shrink: 0;
   opacity: 0.4;
 }
 
 .ga-how__number {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: var(--ga-step-bg);
   color: var(--ga-glow);
@@ -366,8 +366,10 @@
   font-weight: 700;
   font-size: 0.95rem;
   margin-bottom: 0.85rem;
-  border: 1px solid var(--ga-glow);
-  box-shadow: 0 0 16px var(--ga-glow-soft);
+  outline: 1px solid var(--ga-glow);
+  outline-offset: 3px;
+  position: relative;
+  z-index: 1;
 }
 
 .ga-how__step h3 {
@@ -497,5 +499,16 @@
 
 .md-main__inner {
   margin-top: 0;
+}
+
+/* Horizontal padding on homepage sections at medium widths */
+.ga-hero,
+.ga-contrast,
+.ga-quickstart,
+.ga-how,
+.ga-bottom,
+.ga-features {
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
 }
 
