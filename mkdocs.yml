@@ -27,13 +27,15 @@ theme:
     - navigation.tracking
     - navigation.sections
     - navigation.top
-
     - search.suggest
     - search.highlight
     - content.code.copy
   favicon: img/favicon.ico
   icon:
     repo: fontawesome/brands/github
+
+extra:
+  version: "1.6.0"
 
 extra_css:
   - stylesheets/extra.css

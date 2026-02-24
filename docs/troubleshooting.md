@@ -61,7 +61,7 @@ The embedding model uses ~500MB RAM. If this is a problem:
 
 1. **Add descriptions**: Better path descriptions improve ranking
 2. **Be more specific**: Longer, more descriptive queries help
-3. **Check file types**: Only [supported languages](index.md#supported-languages) are indexed
+3. **Check file types**: Only [supported languages](config.md) are indexed
 
 ### Emacs/VSCode not connecting
 

@@ -1,0 +1,210 @@
+{% extends "main.html" %}
+
+{% block tabs %}
+{{ super() }}
+
+<section class="ga-hero">
+  <div class="ga-hero__inner md-grid">
+    <div class="ga-hero__content">
+      <p class="ga-hero__kicker">Semantic codebase search</p>
+      <h1>Your grep can't find<br>what it doesn't understand.</h1>
+      <p class="ga-hero__tagline">Giddyanne indexes the <em>meaning</em> of your code, not just text patterns. Search the way you think — completely offline, completely private.</p>
+      <div class="ga-hero__actions">
+        <a href="install/" class="md-button md-button--primary ga-button--glow">Get Started</a>
+        <a href="https://github.com/upship-ai/giddyanne" class="md-button ga-button--outline">View on GitHub</a>
+      </div>
+      <div class="ga-hero__badges">
+        <span class="ga-badge">100% Local &amp; Private</span>
+        <span class="ga-badge">Open Source (MIT)</span>
+        <span class="ga-badge">v{{ config.extra.version }}</span>
+      </div>
+    </div>
+    <div class="ga-hero__demo">
+      <div class="ga-terminal">
+        <div class="ga-terminal__bar">
+          <span class="ga-terminal__dot ga-terminal__dot--red"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--yellow"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--green"></span>
+        </div>
+        <div class="ga-terminal__body">
+          <pre><span class="ga-t-prompt">$</span> <span class="ga-t-cmd">giddy find</span> <span class="ga-t-str">"authentication logic"</span>
+
+<span class="ga-t-path">src/auth/login.py</span><span class="ga-t-dim">:45-67</span> <span class="ga-t-score">(0.89)</span>
+  <span class="ga-t-kw">def</span> <span class="ga-t-fn">verify_user_credentials</span>(username, password):
+      hashed = bcrypt.hash(password, user.salt)
+      <span class="ga-t-kw">return</span> secrets.compare_digest(hashed, user.password)
+
+<span class="ga-t-path">src/middleware/session.py</span><span class="ga-t-dim">:12-38</span> <span class="ga-t-score">(0.82)</span>
+  <span class="ga-t-kw">class</span> <span class="ga-t-fn">AuthenticationMiddleware</span>:
+      <span class="ga-t-kw">async def</span> <span class="ga-t-fn">__call__</span>(self, request, call_next):</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ga-contrast">
+  <div class="md-grid">
+    <div class="ga-contrast__grid">
+      <div class="ga-contrast__col">
+        <h3 class="ga-contrast__label ga-contrast__label--old">grep / ripgrep</h3>
+        <div class="ga-terminal ga-terminal--compact">
+          <div class="ga-terminal__body">
+            <pre><span class="ga-t-prompt">$</span> rg <span class="ga-t-str">"auth"</span>
+<span class="ga-t-dim">437 matches across 89 files</span>
+<span class="ga-t-dim">...good luck.</span></pre>
+          </div>
+        </div>
+      </div>
+      <div class="ga-contrast__col">
+        <h3 class="ga-contrast__label ga-contrast__label--new">giddyanne</h3>
+        <div class="ga-terminal ga-terminal--compact">
+          <div class="ga-terminal__body">
+            <pre><span class="ga-t-prompt">$</span> <span class="ga-t-cmd">giddy find</span> <span class="ga-t-str">"authentication logic"</span>
+<span class="ga-t-path">src/auth/login.py</span> <span class="ga-t-score">(0.89)</span>
+<span class="ga-t-path">src/middleware/session.py</span> <span class="ga-t-score">(0.82)</span>
+<span class="ga-t-path">src/api/tokens.py</span> <span class="ga-t-score">(0.76)</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ga-how">
+  <div class="md-grid">
+    <h2>How It Works</h2>
+    <div class="ga-how__steps">
+      <div class="ga-how__step">
+        <div class="ga-how__number">1</div>
+        <h3>Index</h3>
+        <p>Scans your project, splits code at function and class boundaries, and creates embeddings for every chunk.</p>
+      </div>
+      <div class="ga-how__connector"></div>
+      <div class="ga-how__step">
+        <div class="ga-how__number">2</div>
+        <h3>Search</h3>
+        <p>Query in natural language. Hybrid search combines semantic understanding with keyword matching.</p>
+      </div>
+      <div class="ga-how__connector"></div>
+      <div class="ga-how__step">
+        <div class="ga-how__number">3</div>
+        <h3>Stay in sync</h3>
+        <p>File watcher re-indexes changed files automatically. No manual rebuilds, no stale results.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ga-quickstart">
+  <div class="md-grid">
+    <h2>Get started in 30 seconds</h2>
+    <div class="ga-quickstart__content">
+      <div class="ga-terminal">
+        <div class="ga-terminal__bar">
+          <span class="ga-terminal__dot ga-terminal__dot--red"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--yellow"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--green"></span>
+        </div>
+        <div class="ga-terminal__body">
+          <pre><span class="ga-t-dim"># Install</span>
+<span class="ga-t-prompt">$</span> git clone --depth 1 --branch v{{ config.extra.version }} \
+    https://github.com/upship-ai/giddyanne.git
+<span class="ga-t-prompt">$</span> <span class="ga-t-cmd">cd</span> giddyanne && <span class="ga-t-cmd">make install</span>
+
+<span class="ga-t-dim"># Search any git repo — no config needed</span>
+<span class="ga-t-prompt">$</span> <span class="ga-t-cmd">giddy find</span> <span class="ga-t-str">"error handling"</span></pre>
+        </div>
+      </div>
+      <p class="ga-quickstart__note">Works out of the box in any git repo. Add a <a href="config/#paths"><code>.giddyanne.yaml</code></a> for optional path descriptions that improve search relevance.</p>
+    </div>
+  </div>
+</section>
+
+<section class="ga-bottom">
+  <div class="ga-bottom__inner md-grid">
+    <div class="ga-bottom__terminal">
+      <div class="ga-terminal">
+        <div class="ga-terminal__bar">
+          <span class="ga-terminal__dot ga-terminal__dot--red"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--yellow"></span>
+          <span class="ga-terminal__dot ga-terminal__dot--green"></span>
+        </div>
+        <div class="ga-terminal__body">
+          <pre><span class="ga-t-prompt">$</span> <span class="ga-t-cmd">giddy</span> -h
+
+<span class="ga-t-dim">giddy - Semantic code search CLI</span>
+
+<span class="ga-t-fn">Usage:</span>
+  giddy <span class="ga-t-cmd">find</span> &lt;query&gt; [options]    Run semantic search
+  giddy <span class="ga-t-cmd">up</span> [options]              Start the server
+  giddy <span class="ga-t-cmd">down</span>                      Stop the server
+  giddy <span class="ga-t-cmd">bounce</span> [options]          Restart the server
+  giddy <span class="ga-t-cmd">status</span>                    Server status
+  giddy <span class="ga-t-cmd">health</span> [options]          Diagnostic information
+  giddy <span class="ga-t-cmd">sitemap</span> [options]         List indexed files
+  giddy <span class="ga-t-cmd">log</span>                       Stream server logs
+  giddy <span class="ga-t-cmd">init</span>                      Print setup prompt for new projects
+  giddy <span class="ga-t-cmd">install</span>                   Download embedding model (~90MB)
+  giddy <span class="ga-t-cmd">mcp</span>                       Run MCP server (for Claude Code)
+  giddy <span class="ga-t-cmd">embed</span> &lt;start|stop|status&gt; Manage shared embedding server
+  giddy <span class="ga-t-cmd">drop</span>                      Remove search index
+  giddy <span class="ga-t-cmd">clean</span> [options]           Remove all .giddyanne data
+  giddy <span class="ga-t-cmd">completion</span> &lt;shell&gt;        Generate shell completions</pre>
+        </div>
+      </div>
+    </div>
+    <div class="ga-bottom__cta">
+      <h2>Ready to search smarter?</h2>
+      <p class="ga-bottom__sub">Get set up in under a minute. No accounts, no API keys, no cloud.</p>
+      <p class="ga-bottom__note">Every command abbreviates — <code>giddy f</code> for find, <code>giddy st</code> for status.</p>
+      <div class="ga-bottom__links">
+        <a href="cli/">CLI Reference</a>
+        <a href="config/">Configuration</a>
+        <a href="integrations/">Integrations</a>
+        <a href="changelog/">Changelog</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="ga-features md-grid">
+  <div class="ga-features__grid">
+
+    <div class="ga-feature">
+      <h3>Private</h3>
+      <p>Your code never leaves your machine. No cloud APIs, no data collection, no telemetry.</p>
+    </div>
+
+    <div class="ga-feature">
+      <h3>Fast</h3>
+      <p>Millisecond searches after initial indexing. Pre-computed embeddings mean instant results.</p>
+    </div>
+
+    <div class="ga-feature">
+      <h3>Offline</h3>
+      <p>Runs entirely on your hardware using local models. No internet, no API keys, no rate limits.</p>
+    </div>
+
+    <div class="ga-feature">
+      <h3>Smart</h3>
+      <p>Understands intent. "Where do I format dates?" finds <code>formatTimestamp()</code> even when the words don't match.</p>
+    </div>
+
+    <div class="ga-feature">
+      <h3>Integrated</h3>
+      <p>CLI, Emacs, VSCode, MCP for AI assistants, or HTTP API for custom workflows.</p>
+    </div>
+
+    <div class="ga-feature">
+      <h3>Live</h3>
+      <p>File watcher re-indexes on save. Your search results stay current without manual rebuilds.</p>
+    </div>
+
+  </div>
+</section>
+
+{% endblock %}
+
+{% block content %}{% endblock %}
+{% block footer %}{{ super() }}{% endblock %}
