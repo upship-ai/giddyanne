@@ -22,7 +22,7 @@ giddy find "authentication logic"
 
 **Integrated** - Works where you work. VSCode, Emacs, CLI, MCP for AI assistants, or HTTP API for custom workflows.
 
-**v1.5.0** · [Changelog](changelog.md)
+**v1.6.0** · [Changelog](changelog.md)
 
 ---
 
@@ -37,7 +37,7 @@ Unlike GitHub Copilot or cloud-based code search, everything runs locally. Unlik
 ## Quickstart
 
 ```bash
-git clone --depth 1 --branch v1.5.0 https://github.com/upship-ai/giddyanne.git
+git clone --depth 1 --branch v1.6.0 https://github.com/upship-ai/giddyanne.git
 cd giddyanne && make install
 ```
 

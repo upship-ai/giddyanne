@@ -208,6 +208,12 @@ LANGUAGES: dict[str, LanguageSpec] = {
         ts_language="r",
         node_types=(),
     ),
+    "elisp": LanguageSpec(
+        name="Emacs Lisp",
+        extensions=(".el",),
+        ts_language="elisp",
+        node_types=("function_definition", "macro_definition", "special_form"),
+    ),
     "elixir": LanguageSpec(
         name="Elixir",
         extensions=(".ex", ".exs"),

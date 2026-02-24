@@ -65,8 +65,8 @@ class TestAsyncEventHandler:
 
         assert handler._should_process(str(test_file))
 
-    def test_should_not_process_files_outside_paths(self, tmp_path):
-        # Create test structure
+    def test_processes_files_outside_configured_paths(self, tmp_path):
+        """Files outside configured paths are still processed (paths are for descriptions only)."""
         src_dir = tmp_path / "src"
         src_dir.mkdir()
         other_dir = tmp_path / "other"
@@ -81,7 +81,7 @@ class TestAsyncEventHandler:
             file_filter=file_filter,
         )
 
-        assert not handler._should_process(str(other_file))
+        assert handler._should_process(str(other_file))
 
     def test_respects_ignore_patterns(self, tmp_path):
         # Create test structure

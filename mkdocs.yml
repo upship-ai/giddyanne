@@ -27,6 +27,7 @@ theme:
     - navigation.tracking
     - navigation.sections
     - navigation.top
+    - navigation.tabs
     - search.suggest
     - search.highlight
     - content.code.copy
@@ -55,14 +56,17 @@ plugins:
 
 nav:
   - Home: index.md
-  - Installation: install.md
-  - Configuration: config.md
-  - CLI Reference: cli.md
-  - Searching: searching.md
-  - Integrations: integrations.md
+  - Getting Started:
+    - Installation: install.md
+    - Configuration: config.md
+    - Searching: searching.md
+  - Reference:
+    - CLI Reference: cli.md
+    - Integrations: integrations.md
+    - Architecture: architecture.md
+  - Community:
+    - Contributing: contributing.md
+    - Changelog: changelog.md
+    - Blog:
+      - blog/index.md
   - Troubleshooting: troubleshooting.md
-  - Architecture: architecture.md
-  - Contributing: contributing.md
-  - Changelog: changelog.md
-  - Blog:
-    - blog/index.md

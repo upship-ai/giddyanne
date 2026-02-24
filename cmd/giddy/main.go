@@ -1513,13 +1513,15 @@ The config format is:
 ` + "```yaml" + `
 paths:
   - path: src/
-    description: Brief description of what this directory contains
+    description: What this directory contains
   - path: lib/
     description: Another description
 ` + "```" + `
 
-Only files with supported extensions are indexed: .py, .go, .js, .jsx, .mjs, .ts, .tsx, .rs, .sql
+All project files with supported extensions are indexed automatically (.py, .go, .js, .jsx, .mjs, .ts, .tsx, .rs, .sql).
 Files matching .gitignore patterns are automatically excluded.
+
+The config is optional — it adds description annotations that improve search relevance. You do NOT need to list every directory; unlisted directories are still indexed, they just don't get a description boost.
 
 Group related code into paths with meaningful descriptions that explain the purpose of each area. These descriptions help semantic search understand context.
 

@@ -5,7 +5,7 @@
 Semantic codebase search using local embeddings. Search your codebase the way you think about it — "authentication logic", "date formatting", "API error handling" — and find the right code even if it uses different words.
 
 ```bash
-git clone --depth 1 --branch v1.5.0 https://github.com/upship-ai/giddyanne.git
+git clone --depth 1 --branch v1.6.0 https://github.com/upship-ai/giddyanne.git
 cd giddyanne && make install
 ```
 

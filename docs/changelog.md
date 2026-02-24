@@ -2,6 +2,16 @@
 
 All notable changes to giddyanne will be documented in this file.
 
+## [1.6.0] - 2026-02-23
+
+### Added
+
+- **Emacs Lisp language support**: `.el` files are now indexed with tree-sitter AST chunking, splitting on `defun`, `defmacro`, and special forms (`defvar`, `defcustom`, etc.)
+
+### Changed
+
+- **Index all project files by default**: All files with supported extensions are now indexed automatically, regardless of whether they appear in `paths` config. The `paths` config is now description-only — it adds annotation context that improves search relevance, but doesn't control what gets indexed. `.gitignore` and `ignore_patterns` still apply. Watcher covers the entire project root instead of only configured directories.
+
 ## [1.5.0] - 2026-02-22
 
 ### Added

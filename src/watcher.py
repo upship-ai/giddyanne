@@ -172,18 +172,7 @@ class FileWatcher:
 
         self._observer = Observer()
 
-        # Watch only the configured paths, not the entire root
-        for path_config in self.file_filter.config.paths:
-            target = self.file_filter.root_path / path_config.path
-            if not target.exists():
-                continue
-
-            if target.is_file():
-                # For explicit files, watch parent directory non-recursively
-                self._observer.schedule(handler, str(target.parent), recursive=False)
-            else:
-                # For directories, watch recursively
-                self._observer.schedule(handler, str(target), recursive=True)
+        self._observer.schedule(handler, str(self.file_filter.root_path), recursive=True)
 
         self._observer.start()
 

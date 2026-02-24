@@ -416,15 +416,9 @@ class FileIndexer:
         # Phase 1: Pre-scan to collect candidate files
         phase1_start = time.perf_counter()
         files_to_check: list[Path] = []
-        for path_config in self.project_config.paths:
-            target = self.root_path / path_config.path
-            if target.is_file():
-                if self.file_filter.should_include(target):
-                    files_to_check.append(target)
-            elif target.is_dir():
-                for file_path in target.rglob("*"):
-                    if self.file_filter.should_include(file_path):
-                        files_to_check.append(file_path)
+        for file_path in self.root_path.rglob("*"):
+            if self.file_filter.should_include(file_path):
+                files_to_check.append(file_path)
 
         phase1_time = time.perf_counter() - phase1_start
         logger.info(

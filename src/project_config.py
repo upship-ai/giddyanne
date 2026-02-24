@@ -25,17 +25,14 @@ class FileFilter:
 
     Files are included if they:
     1. Have a supported language extension (from languages.py)
-    2. Are under a configured path
-    3. Are not ignored by .gitignore or additional ignore_patterns
+    2. Are not ignored by .gitignore or additional ignore_patterns
 
-    Explicitly listed files bypass ignore patterns but still need supported extensions.
+    Configured paths are used only for description annotations, not inclusion filtering.
     """
 
     def __init__(self, root_path: Path, config: "ProjectConfig"):
         self.root_path = root_path
         self.config = config
-        self._explicit_files: set[str] = set()
-        self._path_prefixes: list[str] = []
 
         # Combine .gitignore patterns with config ignore_patterns
         ignore_patterns = self._load_gitignore_patterns()
@@ -43,7 +40,6 @@ class FileFilter:
         self._ignore_matcher = pathspec.PathSpec.from_lines(
             "gitwildmatch", ignore_patterns
         )
-        self._build_path_info()
 
     def _load_gitignore_patterns(self) -> list[str]:
         """Load patterns from .gitignore file if it exists."""
@@ -63,14 +59,6 @@ class FileFilter:
         except OSError as e:
             logger.warning(f"Failed to read .gitignore: {e}")
             return []
-
-    def _build_path_info(self) -> None:
-        """Build lookup structures for explicit files and path prefixes."""
-        for path_config in self.config.paths:
-            target = self.root_path / path_config.path
-            if target.is_file():
-                self._explicit_files.add(path_config.path)
-            self._path_prefixes.append(path_config.path)
 
     def _matches_ignore(self, rel_path: str) -> bool:
         """Check if path matches any ignore pattern (.gitignore + config patterns)."""
@@ -103,18 +91,10 @@ class FileFilter:
         if self._matches_ignore(rel_path):
             return False
 
-        # Check if under a configured path (or explicitly listed)
-        if rel_path in self._explicit_files:
-            return True
-
-        for prefix in self._path_prefixes:
-            if rel_path.startswith(prefix) or prefix == ".":
-                return True
-
-        return False
+        return True
 
     def matches_path(self, path: Path) -> bool:
-        """Check if path matches configured paths (for watcher, ignores existence checks).
+        """Check if path matches for indexing (for watcher, ignores existence checks).
 
         This is used by the watcher for deleted events where the file no longer exists.
         """
@@ -134,15 +114,7 @@ class FileFilter:
         if self._matches_ignore(rel_path):
             return False
 
-        # Check if under a configured path (or explicitly listed)
-        if rel_path in self._explicit_files:
-            return True
-
-        for prefix in self._path_prefixes:
-            if rel_path.startswith(prefix) or prefix == ".":
-                return True
-
-        return False
+        return True
 
     def get_description(self, path: Path) -> str:
         """Get cumulative description from all matching parent paths."""
@@ -285,17 +257,5 @@ class ProjectConfig:
 
     @classmethod
     def default(cls, root_path: Path) -> "ProjectConfig":
-        """Create a default config that indexes common source directories."""
-        common_dirs = ["src", "lib", "app", "tests", "docs"]
-        paths = []
-
-        for dir_name in common_dirs:
-            dir_path = root_path / dir_name
-            if dir_path.exists() and dir_path.is_dir():
-                paths.append(PathConfig(path=dir_name, description=f"{dir_name} directory"))
-
-        # If no common dirs found, index the root
-        if not paths:
-            paths.append(PathConfig(path=".", description="Project root"))
-
-        return cls(paths=paths, settings=ProjectSettings())
+        """Create a default config with no path descriptions."""
+        return cls(paths=[], settings=ProjectSettings())

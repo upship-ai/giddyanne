@@ -33,7 +33,7 @@ class SearchResult:
     description_score: float
 
 
-_FILE_CATEGORY_WEIGHTS = {
+_CATEGORY_WEIGHTS = {
     "code": 1.0,
     "test": 0.8,
     "docs": 0.6,
@@ -66,10 +66,10 @@ def _classify_file(path: str) -> str:
 
 
 def _apply_category_bias(results: list[SearchResult]) -> list[SearchResult]:
-    """Apply file-category score multipliers. Returns a new list."""
+    """Apply score multipliers by file category so the downstream sort respects them."""
     biased = []
     for r in results:
-        weight = _FILE_CATEGORY_WEIGHTS.get(_classify_file(r.path), 1.0)
+        weight = _CATEGORY_WEIGHTS.get(_classify_file(r.path), 1.0)
         biased.append(SearchResult(
             path=r.path,
             chunk_index=r.chunk_index,

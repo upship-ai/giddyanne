@@ -66,20 +66,11 @@ paths:
         assert config.settings.ignore_patterns == DEFAULT_IGNORE_PATTERNS
         assert config.settings.max_file_size == DEFAULT_MAX_FILE_SIZE
 
-    def test_default_finds_common_dirs(self, sample_project_dir):
-        config = ProjectConfig.default(sample_project_dir)
-
-        path_names = [p.path for p in config.paths]
-        assert "src" in path_names
-        assert "tests" in path_names
-        assert ".git" not in path_names
-
-    def test_default_empty_project_uses_root(self, tmp_path):
-        """When no common directories exist, default to root."""
+    def test_default_no_paths(self, tmp_path):
+        """When no config file exists, default has no path descriptions."""
         config = ProjectConfig.default(tmp_path)
 
-        assert len(config.paths) == 1
-        assert config.paths[0].path == "."
+        assert len(config.paths) == 0
 
     def test_path_without_description(self, tmp_path):
         """Test loading paths without descriptions."""

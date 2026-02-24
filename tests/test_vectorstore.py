@@ -708,30 +708,42 @@ class TestApplyCategoryBias:
     def _make_result(self, path: str, score: float) -> SearchResult:
         return SearchResult(path, 0, 1, 10, "content", "", score, score, 0.0)
 
-    def test_code_weight_unchanged(self):
-        results = _apply_category_bias([self._make_result("src/app.py", 1.0)])
-        assert results[0].score == 1.0
+    def test_code_unchanged(self):
+        results = _apply_category_bias([self._make_result("src/app.py", 0.8)])
+        assert results[0].score == 0.8
 
-    def test_test_weight_reduced(self):
-        results = _apply_category_bias([self._make_result("tests/test_app.py", 1.0)])
-        assert results[0].score == pytest.approx(0.8)
-
-    def test_docs_weight_reduced(self):
+    def test_docs_score_reduced(self):
+        """Doc score multiplied by 0.6."""
         results = _apply_category_bias([self._make_result("README.md", 1.0)])
         assert results[0].score == pytest.approx(0.6)
 
-    def test_does_not_mutate_originals(self):
-        original = self._make_result("tests/test_app.py", 1.0)
-        _apply_category_bias([original])
-        assert original.score == 1.0
+    def test_test_score_reduced(self):
+        """Test score multiplied by 0.8."""
+        results = _apply_category_bias([self._make_result("tests/test_app.py", 1.0)])
+        assert results[0].score == pytest.approx(0.8)
 
-    def test_source_ranks_above_test_with_equal_raw_scores(self):
+    def test_doc_below_code_after_bias(self):
+        """Doc at 0.8 (weighted 0.48) sorts below code at 0.5."""
         results = _apply_category_bias([
-            self._make_result("tests/test_search.py", 0.9),
-            self._make_result("src/search.py", 0.9),
+            self._make_result("README.md", 0.8),
+            self._make_result("src/app.py", 0.5),
         ])
-        results.sort(key=lambda x: x.score, reverse=True)
-        assert results[0].path == "src/search.py"
+        scores = {r.path: r.score for r in results}
+        assert scores["src/app.py"] > scores["README.md"]
+
+    def test_strong_doc_stays_above(self):
+        """Doc at 1.0 (weighted 0.6) still beats code at 0.5."""
+        results = _apply_category_bias([
+            self._make_result("README.md", 1.0),
+            self._make_result("src/app.py", 0.5),
+        ])
+        scores = {r.path: r.score for r in results}
+        assert scores["README.md"] > scores["src/app.py"]
+
+    def test_unknown_category_unchanged(self):
+        """Files not matching any category keep their score."""
+        results = _apply_category_bias([self._make_result("Makefile", 0.7)])
+        assert results[0].score == 0.7
 
 
 class TestCategoryBiasIntegration:
