@@ -2,6 +2,12 @@
 
 All notable changes to giddyanne will be documented in this file.
 
+## [1.6.2] - 2026-02-25
+
+### Fixed
+
+- **Lint fixes**: Cleaned up linter warnings in engine and benchmark code
+
 ## [1.6.1] - 2026-02-25
 
 ### Fixed

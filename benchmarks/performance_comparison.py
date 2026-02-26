@@ -24,14 +24,16 @@ import yaml
 
 GIDDYANNE_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(GIDDYANNE_ROOT))
-from src.project_config import FileFilter, ProjectConfig
+from src.project_config import FileFilter, ProjectConfig  # noqa: E402
 
 INDEX_RUNS = 1
 WARM_SEARCH_RUNS = 5
 
 TOOLS = ["giddyanne"]
-# Also available: "giddyanne-ollama", "giddyanne-fulltext", "giddyanne-semantic", "giddyanne-nomic", "giddyanne-nomic-ollama", "grepai"
-# Note: ollama variants need batching support to be practical (timeout at 600s due to per-request HTTP overhead)
+# Also available: "giddyanne-ollama", "giddyanne-fulltext", "giddyanne-semantic",
+# "giddyanne-nomic", "giddyanne-nomic-ollama", "grepai"
+# Note: ollama variants need batching support to be practical
+# (timeout at 600s due to per-request HTTP overhead)
 
 # Tool config: (ollama, local_model override, ollama_model override, search_flags)
 TOOL_CONFIG = {
@@ -647,7 +649,7 @@ def print_report(report: dict):
         sep()
 
         # Per-query detail
-        print(f"\n  Per-query detail:")
+        print("\n  Per-query detail:")
         expected_files = repo["expected_files"]
         queries = list(expected_files.keys())
         for query in queries:
@@ -660,7 +662,8 @@ def print_report(report: dict):
                 r = q['recall']
                 rr = q['reciprocal_rank']
                 top = ", ".join(
-                    os.path.basename(p) + (" *" if any(p.endswith(e) for e in expected_files[query]) else "")
+                    os.path.basename(p)
+                    + (" *" if any(p.endswith(e) for e in expected_files[query]) else "")
                     for p in q["top_5"][:3]
                 )
                 print(f"      {t}: {r:.0%} recall, RR={rr:.2f}  [{top}]")

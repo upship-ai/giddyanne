@@ -10,7 +10,7 @@
 ## Build from Source
 
 ```bash
-git clone --depth 1 --branch v1.6.1 https://github.com/upship-ai/giddyanne.git
+git clone --depth 1 --branch v1.6.2 https://github.com/upship-ai/giddyanne.git
 cd giddyanne
 make install
 ```
@@ -29,7 +29,7 @@ If you don't have Go installed:
 
 ```bash
 # Clone the repo (needed for Python server code)
-git clone --depth 1 --branch v1.6.1 https://github.com/upship-ai/giddyanne.git
+git clone --depth 1 --branch v1.6.2 https://github.com/upship-ai/giddyanne.git
 cd giddyanne
 
 # Download binary for your platform from Releases:

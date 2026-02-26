@@ -600,8 +600,8 @@ class FileIndexer:
                     prefix = _build_context_prefix(rel_path, c)
                     embed_content = f"{prefix}\n{raw}"
                     fts = _build_fts_content(rel_path, c)
-                raw_contents[(str(path), idx)] = raw
-                fts_contents[(str(path), idx)] = fts
+                raw_contents[(str(path), idx)] = raw  # noqa: F821
+                fts_contents[(str(path), idx)] = fts  # noqa: F821
                 result_tuples.append(
                     (str(path), idx, c.start_line, c.end_line, embed_content, description, mtime)
                 )
