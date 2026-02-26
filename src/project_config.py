@@ -60,8 +60,15 @@ class FileFilter:
             logger.warning(f"Failed to read .gitignore: {e}")
             return []
 
+    def _in_always_ignored_dir(self, rel_path: str) -> bool:
+        """Check if any path component is in ALWAYS_IGNORE_DIRS."""
+        parts = Path(rel_path).parts
+        return any(part in ALWAYS_IGNORE_DIRS for part in parts)
+
     def _matches_ignore(self, rel_path: str) -> bool:
         """Check if path matches any ignore pattern (.gitignore + config patterns)."""
+        if self._in_always_ignored_dir(rel_path):
+            return True
         return self._ignore_matcher.match_file(rel_path)
 
     def should_include(self, path: Path) -> bool:
@@ -142,6 +149,27 @@ class PathConfig:
     path: str
     description: str
 
+
+# Directories that are ALWAYS excluded — no config can override this.
+# These are never useful to index and watching them causes performance issues.
+ALWAYS_IGNORE_DIRS: set[str] = {
+    ".giddyanne",
+    ".git",
+    "node_modules",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "dist",
+    "build",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".turbo",
+}
 
 DEFAULT_IGNORE_PATTERNS: list[str] = []
 DEFAULT_MAX_FILE_SIZE = 1_000_000

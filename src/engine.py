@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import resource
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -21,6 +22,19 @@ EMBED_BATCH_SIZE = 32  # Chunks per embedding batch
 
 # Module-level executor for file I/O
 _file_executor = ThreadPoolExecutor(max_workers=FILE_READ_CONCURRENCY)
+
+
+def _rss_mb() -> float:
+    """Current process RSS in megabytes (from /proc, so it tracks real-time)."""
+    try:
+        with open("/proc/self/status") as f:
+            for line in f:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) / 1024  # KB -> MB
+    except OSError:
+        pass
+    # Fallback (peak RSS, not current)
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
 
 
 def _build_context_prefix(rel_path: str, chunk: Chunk) -> str:
@@ -170,7 +184,7 @@ class StatsTracker:
         """Record that initial indexing is complete."""
         self._startup_duration_ms = (time.perf_counter() - self._start_time) * 1000
         duration_secs = self._startup_duration_ms / 1000
-        self._log("READY", f"[{duration_secs:.2f}s]")
+        self._log("READY", f"[{duration_secs:.2f}s RSS={_rss_mb():.0f}MB]")
 
     def startup_duration_ms(self) -> float | None:
         """Get startup duration in milliseconds. None if not yet complete."""
@@ -248,8 +262,10 @@ class FileIndexer:
             return
 
         start = time.perf_counter()
+        rel = self.stats._relative_path(str(path)) if self.stats else str(path)
+        rss_start = _rss_mb()
         if self.stats:
-            self.stats._log("INDEX", self.stats._relative_path(str(path)))
+            self.stats._log("INDEX", f"{rel} [RSS={rss_start:.0f}MB]")
         try:
             # Capture mtime if not provided
             if mtime is None:
@@ -259,11 +275,14 @@ class FileIndexer:
             description = self.file_filter.get_description(path)
 
             # Delete existing chunks for this file
+            t0 = time.perf_counter()
             await self.vector_store.delete(str(path))
+            delete_ms = (time.perf_counter() - t0) * 1000
 
             # Chunk the content (language-aware if recognized)
             settings = self.project_config.settings
             language = detect_language(str(path))
+            t0 = time.perf_counter()
             chunks = chunk_content(
                 content,
                 language=language,
@@ -271,6 +290,7 @@ class FileIndexer:
                 max_lines=settings.max_chunk_lines,
                 overlap=settings.overlap_lines,
             )
+            chunk_ms = (time.perf_counter() - t0) * 1000
 
             # If no chunks (empty file), create a single chunk
             if not chunks:
@@ -287,53 +307,88 @@ class FileIndexer:
                 rel_path = str(path)
 
             provider = self.embedding_service.provider
+            t0 = time.perf_counter()
             chunks = split_oversized_chunks(
                 chunks,
                 prefix_fn=lambda c: _build_context_prefix(rel_path, c),
                 token_count_fn=provider.token_count,
                 max_tokens=provider.max_seq_length,
             )
+            split_ms = (time.perf_counter() - t0) * 1000
 
-            # Embed and store each chunk
-            for idx, chunk in enumerate(chunks):
-                logger.debug(
-                    f"Embedding chunk {idx + 1}/{len(chunks)} for {path.name} "
-                    f"(lines {chunk.start_line}-{chunk.end_line})"
+            if self.stats:
+                self.stats._log(
+                    "PREP",
+                    f"{rel}  {len(content)} chars, {len(chunks)} chunks  "
+                    f"[del={delete_ms:.0f}ms chunk={chunk_ms:.0f}ms "
+                    f"split={split_ms:.0f}ms]",
                 )
-                # Enrich content with context prefix for better embeddings
+
+            # Build batch tuples for embed_chunks_batch (same format as full_index)
+            batch_tuples = []
+            raw_contents: dict[tuple[str, int], str] = {}
+            fts_contents: dict[tuple[str, int], str] = {}
+            for idx, chunk in enumerate(chunks):
                 embed_content = chunk.content
+                fts = chunk.content
                 if hasattr(chunk, "header"):
                     prefix = _build_context_prefix(rel_path, chunk)
                     embed_content = f"{prefix}\n{chunk.content}"
-                # Build enriched FTS content with path/symbol boosting
-                fts_content = chunk.content
-                if hasattr(chunk, "header"):
-                    fts_content = _build_fts_content(rel_path, chunk)
-                result = await self.embedding_service.embed_file(
-                    str(path), embed_content, description
-                )
-                await self.vector_store.upsert(
-                    path=result["path"],
-                    chunk_index=idx,
-                    start_line=chunk.start_line,
-                    end_line=chunk.end_line,
-                    content=chunk.content,
-                    path_embedding=result["path_embedding"],
-                    content_embedding=result["content_embedding"],
-                    description=result["description"],
-                    description_embedding=result["description_embedding"],
-                    mtime=mtime,
-                    fts_content=fts_content,
-                )
+                    fts = _build_fts_content(rel_path, chunk)
+                raw_contents[(str(path), idx)] = chunk.content
+                fts_contents[(str(path), idx)] = fts
+                batch_tuples.append((
+                    str(path), idx, chunk.start_line, chunk.end_line,
+                    embed_content, description, mtime,
+                ))
 
+            # Single batch embed call (instead of N individual calls)
+            t0 = time.perf_counter()
+            chunk_embeddings, trunc_stats = await self.embedding_service.embed_chunks_batch(
+                batch_tuples
+            )
+            embed_ms = (time.perf_counter() - t0) * 1000
             if self.stats:
-                self.stats.record_embed(
-                    time.perf_counter() - start, str(path), self.progress
+                self.stats.record_truncation(trunc_stats)
+
+            # Single batch upsert (instead of N individual _table.add() calls)
+            upsert_data = [
+                {
+                    "path": ce.path,
+                    "chunk_index": ce.chunk_index,
+                    "start_line": ce.start_line,
+                    "end_line": ce.end_line,
+                    "content": raw_contents.get((ce.path, ce.chunk_index), ce.content),
+                    "fts_content": fts_contents.get((ce.path, ce.chunk_index), ce.content),
+                    "description": ce.description,
+                    "mtime": ce.mtime,
+                    "path_embedding": ce.path_embedding,
+                    "content_embedding": ce.content_embedding,
+                    "description_embedding": ce.description_embedding,
+                }
+                for ce in chunk_embeddings
+            ]
+            t0 = time.perf_counter()
+            await self.vector_store.upsert_batch(upsert_data)
+            upsert_ms = (time.perf_counter() - t0) * 1000
+
+            total_ms = (time.perf_counter() - start) * 1000
+            rss_end = _rss_mb()
+            if self.stats:
+                self.stats._log(
+                    "EMBED",
+                    f"{total_ms / 1000:.2f}s  {rel}  "
+                    f"[{len(chunks)} chunks, embed={embed_ms:.0f}ms "
+                    f"upsert={upsert_ms:.0f}ms, "
+                    f"RSS={rss_end:.0f}MB (+{rss_end - rss_start:.0f}MB)]",
                 )
 
-            logger.info(f"Indexed: {path} ({len(chunks)} chunks)")
-        except Exception as e:
-            logger.error(f"Failed to index {path}: {e}")
+            logger.info(
+                f"Indexed: {path} ({len(chunks)} chunks in {total_ms:.0f}ms, "
+                f"RSS={rss_end:.0f}MB)"
+            )
+        except Exception:
+            logger.exception(f"Failed to index {path}")
 
     async def delete_file(self, path: Path) -> None:
         """Remove a file from the index."""
@@ -347,17 +402,32 @@ class FileIndexer:
         if event.is_directory:
             return
 
-        if event.event_type == EventType.DELETED:
-            await self.delete_file(event.path)
-        elif event.event_type == EventType.MOVED:
-            await self.delete_file(event.path)
-            if event.dest_path:
-                await self.index_file(event.dest_path)
-        else:  # CREATED or MODIFIED
-            # Check if file actually needs reindexing (mtime changed)
-            should_reindex, mtime = await self._should_reindex(event.path)
-            if should_reindex:
-                await self.index_file(event.path, mtime=mtime)
+        if self.stats:
+            self.stats._log(
+                "WATCH",
+                f"{event.event_type.value} "
+                f"{self.stats._relative_path(str(event.path))} "
+                f"[RSS={_rss_mb():.0f}MB]",
+            )
+
+        try:
+            if event.event_type == EventType.DELETED:
+                await self.delete_file(event.path)
+            elif event.event_type == EventType.MOVED:
+                await self.delete_file(event.path)
+                if event.dest_path:
+                    await self.index_file(event.dest_path)
+            else:  # CREATED or MODIFIED
+                # Check if file actually needs reindexing (mtime changed)
+                should_reindex, mtime = await self._should_reindex(event.path)
+                if should_reindex:
+                    await self.index_file(event.path, mtime=mtime)
+                else:
+                    logger.info(f"  skipped (mtime unchanged): {event.path}")
+        except Exception:
+            logger.exception(
+                f"handle_event failed for {event.event_type.value} {event.path}"
+            )
 
     async def reconcile_index(self) -> int:
         """Remove stale files from index. Returns count of removed files.
@@ -405,13 +475,14 @@ class FileIndexer:
         total_time = time.perf_counter() - start
         logger.info(
             f"Reconcile complete in {total_time:.2f}s "
-            f"(list:{list_time:.2f}s, check:{check_time:.2f}s, removed:{removed})"
+            f"(list:{list_time:.2f}s, check:{check_time:.2f}s, removed:{removed}) "
+            f"[RSS={_rss_mb():.0f}MB]"
         )
         return removed
 
     async def full_index(self) -> None:
         """Perform a full index of all configured paths."""
-        logger.info(f"Starting full index of {self.root_path}")
+        logger.info(f"Starting full index of {self.root_path} [RSS={_rss_mb():.0f}MB]")
 
         # Phase 1: Pre-scan to collect candidate files
         phase1_start = time.perf_counter()
@@ -422,7 +493,8 @@ class FileIndexer:
 
         phase1_time = time.perf_counter() - phase1_start
         logger.info(
-            f"Phase 1: Found {len(files_to_check)} candidate files in {phase1_time:.2f}s"
+            f"Phase 1: Found {len(files_to_check)} candidate files in {phase1_time:.2f}s "
+            f"[RSS={_rss_mb():.0f}MB]"
         )
 
         # Phase 2: Filter to only files that need re-indexing
@@ -448,7 +520,8 @@ class FileIndexer:
         self.progress.state = "indexing"
         logger.info(
             f"Phase 2: Checked mtimes in {phase2_time:.2f}s - "
-            f"{self.progress.total} to index, {skipped} unchanged"
+            f"{self.progress.total} to index, {skipped} unchanged "
+            f"[RSS={_rss_mb():.0f}MB]"
         )
 
         # Phase 3: Parallel read + batch embed
@@ -462,14 +535,25 @@ class FileIndexer:
         raw_contents: dict[tuple[str, int], str] = {}
         fts_contents: dict[tuple[str, int], str] = {}
 
+        total_bytes_read = 0
+
         async def read_and_chunk(path: Path) -> list[tuple]:
             """Read file and return list of chunk tuples."""
+            nonlocal total_bytes_read
             async with read_sem:
                 try:
                     path, content, mtime = await read_file_async(path)
                 except Exception as e:
                     logger.error(f"Failed to read {path}: {e}")
                     return []
+
+            file_bytes = len(content.encode("utf-8", errors="ignore"))
+            total_bytes_read += file_bytes
+            if file_bytes > 100_000:
+                logger.info(
+                    f"Large file: {path.name} ({file_bytes / 1024:.0f}KB, "
+                    f"{len(content.splitlines())} lines)"
+                )
 
             description = self.file_filter.get_description(path)
 
@@ -541,9 +625,12 @@ class FileIndexer:
                 files_processed += 1
                 self.progress.indexed = files_processed
 
+        raw_bytes = sum(len(v.encode("utf-8", errors="ignore")) for v in raw_contents.values())
         logger.info(
             f"Phase 3a: Read {files_processed} files, {len(all_chunks)} chunks "
-            f"in {time.perf_counter() - phase3_start:.2f}s"
+            f"in {time.perf_counter() - phase3_start:.2f}s "
+            f"[{total_bytes_read / 1024 / 1024:.1f}MB read, "
+            f"{raw_bytes / 1024 / 1024:.1f}MB in buffers, RSS={_rss_mb():.0f}MB]"
         )
 
         # Batch embed and upsert
@@ -583,19 +670,25 @@ class FileIndexer:
                 self.stats._log(
                     "BATCH",
                     f"{batch_duration:.2f}s  {len(batch)} chunks  "
-                    f"[{batch_num}/{total_batches}]",
+                    f"[{batch_num}/{total_batches} RSS={_rss_mb():.0f}MB]",
                 )
 
         embed_time = time.perf_counter() - embed_start
+
+        # Release content buffers that were held during embedding
+        chunk_count = len(all_chunks)
+        del raw_contents, fts_contents, all_chunks, all_chunk_lists
+
         phase3_time = time.perf_counter() - phase3_start
         total_time = phase1_time + phase2_time + phase3_time
         self.progress.state = "ready"
         logger.info(
-            f"Phase 3b: Embedded {len(all_chunks)} chunks in {embed_time:.2f}s"
+            f"Phase 3b: Embedded {chunk_count} chunks in {embed_time:.2f}s"
         )
         logger.info(
             f"Full index complete in {total_time:.2f}s "
-            f"(scan:{phase1_time:.2f}s, mtime:{phase2_time:.2f}s, embed:{phase3_time:.2f}s)"
+            f"(scan:{phase1_time:.2f}s, mtime:{phase2_time:.2f}s, embed:{phase3_time:.2f}s) "
+            f"[RSS={_rss_mb():.0f}MB]"
         )
 
 

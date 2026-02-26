@@ -1,4 +1,4 @@
-.PHONY: all go python vscode install clean
+.PHONY: all go python vscode install clean qa
 
 BIN_DIR := $(HOME)/bin
 VERSION := $(shell grep '^version' pyproject.toml | head -1 | sed 's/.*"\(.*\)"/\1/')
@@ -40,6 +40,10 @@ vscode/giddyanne-$(VERSION).vsix: vscode/node_modules $(VSCODE_SOURCES)
 	@echo ""
 	@echo "Built vscode/giddyanne-$(VERSION).vsix"
 	@echo "Install with: code --install-extension vscode/giddyanne-$(VERSION).vsix"
+
+qa: .venv/.installed
+	.venv/bin/ruff check .
+	.venv/bin/pytest
 
 clean:
 	rm -f giddy .venv/.installed vscode/giddyanne-*.vsix

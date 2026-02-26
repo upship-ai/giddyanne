@@ -2,6 +2,20 @@
 
 All notable changes to giddyanne will be documented in this file.
 
+## [1.6.1] - 2026-02-25
+
+### Fixed
+
+- **Watcher ignores node_modules, .giddyanne, .git, etc.**: Hardcoded `ALWAYS_IGNORE_DIRS` set that is always excluded from watching and indexing regardless of config. Previously, watchdog registered inotify watches on every subdirectory including `node_modules` (10k+ watches on a typical JS project, now ~140).
+- **Non-recursive watcher with selective directory walks**: Replaced `recursive=True` Observer with manual directory walking that prunes ignored dirs. New directories are auto-watched via `DirCreatedEvent`. Eliminates thousands of wasted kernel inotify watches.
+- **Batch upserts in watcher-triggered indexing**: `index_file` (the single-file reindex path) now uses `embed_chunks_batch` + `upsert_batch` instead of per-chunk embed/upsert loops. A 22-chunk file previously created 22 LanceDB fragments triggering expensive compaction; now creates 1.
+- **Diagnostic logging for memory leaks**: RSS tracking via `/proc/self/status` at every indexing phase, per-file size logging, stats-log output for WATCH/INDEX/PREP/EMBED events visible via `giddy log`. Watcher `fire()` callback now catches and logs async exceptions.
+
+### Added
+
+- **`make qa` target**: Runs linter (`ruff check`) and tests (`pytest`) in one command.
+- **GitHub Actions CI**: `make qa` runs automatically on pushes and PRs to `main`, with venv caching.
+
 ## [1.6.0] - 2026-02-23
 
 ### Added

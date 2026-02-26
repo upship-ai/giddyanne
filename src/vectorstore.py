@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import TYPE_CHECKING
 
 import lancedb
 import pyarrow as pa
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .reranker import Reranker
@@ -521,8 +524,14 @@ class VectorStore:
         if self._table is None:
             raise RuntimeError("Not connected to database")
 
+        # Load full table then select - to_arrow() is the expensive part
+        # but we only convert the path column to avoid extra memory
         table = self._table.to_arrow()
+        logger.debug(
+            f"list_all: loaded {table.num_rows} rows ({table.nbytes / 1024 / 1024:.1f}MB)"
+        )
         paths = table.column("path").to_pylist()
+        del table  # Release arrow table memory
         # Count chunks per file
         counts: dict[str, int] = {}
         for path in paths:
@@ -537,9 +546,14 @@ class VectorStore:
         if self._table is None:
             raise RuntimeError("Not connected to database")
 
-        table = self._table.to_arrow()
-        paths = table.column("path").to_pylist()
-        mtimes = table.column("mtime").to_pylist()
+        full_table = self._table.to_arrow()
+        logger.debug(
+            f"get_all_mtimes: loaded {full_table.num_rows} rows "
+            f"({full_table.nbytes / 1024 / 1024:.1f}MB)"
+        )
+        paths = full_table.column("path").to_pylist()
+        mtimes = full_table.column("mtime").to_pylist()
+        del full_table  # Release arrow table memory
 
         # Deduplicate - files may have multiple chunks, all with same mtime
         result: dict[str, float] = {}
